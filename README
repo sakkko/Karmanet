@@ -1,0 +1,12 @@
+Karmanet - Sistema P2P distribuito per la condivione di file.
+
+Architettura P2P distribuita, in cui sono presenti peer e superpeer con le seguenti caratterestiche:
+- Ogni peer è associato ad unn superpeer;
+- I superpeer tengono traccia dei file condivisi dai peer ad esso associati
+- I superpeer sono collegati tra loro tramite una rete "overlay"
+
+Comunicazione tra peer e superpeer basata su UDP
+Comunicazione tra superpeer basata su TCP
+
+Un server centralizzato di bootstrap che tiene traccia dei superpeer presenti
+
