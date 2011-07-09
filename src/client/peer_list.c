@@ -3,7 +3,7 @@
 /*
 * Funzione che inserisce un indirizzo nella lista.
 */
-void insert_peer(const struct sockaddr_in *peer_addr, long peer_rate) {
+void insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate) {
 	struct node *tmp_node;
 	struct peer_node *new_node;
 	
@@ -17,7 +17,7 @@ void insert_peer(const struct sockaddr_in *peer_addr, long peer_rate) {
 	}
 }
 
-void sorted_insert_peer(const struct sockaddr_in *peer_addr, long peer_rate) {
+void sorted_insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate) {
 	struct node *tmp_node;
 	struct peer_node *tmp_peernode;
 
@@ -26,15 +26,17 @@ void sorted_insert_peer(const struct sockaddr_in *peer_addr, long peer_rate) {
 	while (tmp_node != NULL) {
 		tmp_peernode = (struct peer_node *)tmp_node->data;
 		if (peer_rate > tmp_peernode->peer_rate) {
-			sorted_insert_node(peer_list_head, tmp_node->prev, new_peer_node(peer_addr, peer_rate));
+			//passa alla funzione di inserimento il nodo precedente
+			tmp_node = tmp_node->prev;
 			break;
 		}
 		if (tmp_node->next == NULL) {
-			sorted_insert_node(peer_list_head, tmp_node, new_peer_node(peer_addr, peer_rate));
 			break;	
 		}
 		tmp_node = tmp_node->next;
 	}
+
+	sorted_insert_node(peer_list_head, tmp_node, new_peer_node(peer_addr, peer_rate));
 }
 
 struct peer_node *new_peer_node(const struct sockaddr_in *peer_addr, unsigned long peer_rate) {

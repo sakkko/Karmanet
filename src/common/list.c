@@ -10,12 +10,11 @@ struct node *insert_node(struct node *list, void *data) {
 	new_node = (struct node *)malloc(sizeof(struct node));
 	new_node->data = data;
 	new_node->prev = NULL;
+	new_node->next = list;
 	
-	if (list == NULL) {
-		new_node->next = NULL;
-	} else {
-		new_node->next = list;
-	}
+	if (list != NULL) {
+		list->prev = new_node;
+	} 
 	
 	return new_node;
 }
