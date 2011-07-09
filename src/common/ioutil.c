@@ -128,3 +128,4 @@ short get_rand() {
 	srand(time(NULL));
 	return (short)rand();
 }
+
