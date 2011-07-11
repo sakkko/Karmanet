@@ -29,6 +29,8 @@
 #define DIM_SP 		5
 //ricordiamoci di cambiarlo
 #define TIME_CHECK_FLAG 10
+//#define TIME_TO_PING  3
+
 
 #define TCP_PORT 5193
 #define UDP_PORT 5193
@@ -68,6 +70,12 @@ struct sockaddr_in child; //ultimo promote inviato
 struct sockaddr_in bs_addr; //indirizzo del boot
 
 struct sockaddr_in my_sp_addr; //(indirizzo del sp a me associato)
+
+short my_sp_flag;		//flag associato al mio sp	
+
+pid_t pid_csp;			//processo check_sp
+
+long stack_csp[1024];  // stack check_sp
 
 void sig_chld_handler(int signo);
 
