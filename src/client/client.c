@@ -20,6 +20,49 @@ int ping_func(void) {
 	}	
 }
 
+
+int update_sp(){
+	int lockfd2;	
+	if ((lockfd2 = lock(LOCK_MY_SP)) < 0) {
+		exit(1);
+	}
+	
+	my_sp_flag = 1;
+	
+	if (unlock(LOCK_MY_SP, lockfd2) < 0) {
+		exit(1);
+	}
+	
+}
+
+int check_sp(void* unused){
+	int lockfd3;	
+	printf("AVVIO PROCESSO DI CONTROLLO SP\n");
+	while(1){
+	  sleep(TIME_CHECK_FLAG);	
+		if ((lockfd3 = lock(LOCK_MY_SP)) < 0) {
+			exit(1);
+		}
+	
+		if(my_sp_flag == 0){
+			//rimuovere sp
+			printf("IL SUPER PEER NON RISPONDE\n");
+//			my_sp_addr.sin_addr.s_addr = 0;
+													
+		}
+		else{
+			my_sp_flag = 0;
+		
+		}
+	
+		if (unlock(LOCK_MY_SP, lockfd3) < 0) {
+			exit(1);
+		} 	
+	}
+	
+
+}
+
 short get_index() {
 	short ret = start_index;
 	start_index ++;
@@ -87,11 +130,13 @@ int init(fd_set *fdset) {
 	init_index();
 	retx_init();
 	
+	unlink(LOCK_MY_SP);
+	
 	return 0;
 }
 
 //processo di inizializzazione decido se sono peer o sp in caso restituisce la lista di ind
-struct sockaddr_in *start_process(fd_set *fdset, int *list_len) {
+struct sockaddr_in *start_process_OLD(fd_set *fdset, int *list_len) {
 	struct packet send_pck, recv_pck;
 	struct sockaddr_in *addr_list;
 		
@@ -117,6 +162,7 @@ struct sockaddr_in *start_process(fd_set *fdset, int *list_len) {
 	
 	if (!strncmp(recv_pck.cmd, CMD_LIST, CMD_STR_LEN)) {
 		//ricevo lista di sp
+		// sono un peer
 		addr_list = str_to_addr(recv_pck.data, recv_pck.data_len / 6);
 		*list_len = recv_pck.data_len / 6;
 		return addr_list;
@@ -189,7 +235,11 @@ int init_peer(fd_set *allset, struct sockaddr_in  *addr, int list_len, struct so
 			perror ("errore in udp_recv");
 			continue; //prova ancora
 		}
-		if (!strncmp(recv_pck.cmd, CMD_ACK, CMD_STR_LEN)) { 
+		if (!strncmp(recv_pck.cmd, CMD_ACK, CMD_STR_LEN)) {
+			
+			my_sp_flag = 1;
+			pid_csp = clone((int(*)(void *))check_sp, &stack_csp[1024], CLONE_VM, 0); 
+			
 			//ricevuto ack
 			//connessione accettata
 			//invio la mia lista di file
@@ -198,7 +248,7 @@ int init_peer(fd_set *allset, struct sockaddr_in  *addr, int list_len, struct so
 		} else if (!strcmp(recv_pck.cmd, CMD_PROMOTE)) { 
 			//ricevuto promote
 			new_ack_packet(&send_pck, recv_pck.index);
-	 		if(send_packet(udp_sock, &my_sp_addr, &send_pck) < 0){
+	 		if(mutex_send(udp_sock, &my_sp_addr, &send_pck) < 0){
 	 			perror ("errore in udp_send");
 	 			return -1;
 	 		}	
@@ -208,8 +258,9 @@ int init_peer(fd_set *allset, struct sockaddr_in  *addr, int list_len, struct so
 	 		return 0;
 	 	} else if (!strcmp(recv_pck.cmd, CMD_REDIRECT)) {
 	 		//TODO leggo dal pacchetto l'indirizzo
+	 		retx_stop(recv_pck.index);
 	 		new_ack_packet(&send_pck, recv_pck.index);
-	 		if (send_packet(udp_sock, &my_sp_addr, &send_pck) < 0) {
+	 		if (mutex_send(udp_sock, &my_sp_addr, &send_pck) < 0) {
 	 			perror ("errore in udp_send");
 	 			continue; //prova un altro indirizzo
 	 		}
@@ -261,17 +312,24 @@ void udp_handler(int udp_sock, fd_set *allset) {
 	if (strncmp(tmp_pck.cmd, CMD_PING, CMD_STR_LEN) && strncmp(tmp_pck.cmd, CMD_PONG, CMD_STR_LEN)) {
 		//interrompo ritrasmissione. I ping e i pong non vengono ritrasmessi
 		//quindi non c'è bisogno di interrompere la loro ritrasmissione
+		//!!non ho capito sta funzione interrompo la ritrasmissione di tutto tranne ping e pong
+		//infatti me dice sempre "NO THREAD FOUND FOR xxxx"
+		//!!ma non dovrei interrompere la rtx quando ricevo un ack=??????
 		retx_stop(tmp_pck.index);
 	}
 	
 	//TODO se ho già processato questa richiesta nel immediato passato rinvio l'ack
 	
-	if (is_sp == 1) {
-		//sono sp		
-		if (!strncmp(tmp_pck.cmd, CMD_ACK, CMD_STR_LEN)) {
+			
+	if (!strncmp(tmp_pck.cmd, CMD_ACK, CMD_STR_LEN)) {
 			//ricevuto ack
-		} else if (!strncmp(tmp_pck.cmd, CMD_JOIN, CMD_STR_LEN)) {
+	} 
+	
+	if (is_sp == 1) {
+		//sono sp
+		 if (!strncmp(tmp_pck.cmd, CMD_JOIN, CMD_STR_LEN)) {
 			join_peer(&addr, &tmp_pck);
+			insert_request(&addr,tmp_pck.index);
 		} else if (!strncmp(tmp_pck.cmd, CMD_PING, CMD_STR_LEN)) { 
 			printf("ricevuto ping\n");
 			//updateflag di addr
@@ -289,6 +347,7 @@ void udp_handler(int udp_sock, fd_set *allset) {
 		if (!strncmp(tmp_pck.cmd, CMD_PONG, CMD_STR_LEN)) { 
 			printf("ricevuto pong\n");
 			//updateflag di addr
+			update_sp();
 		}
 	}
 }
@@ -323,7 +382,7 @@ int main (int argc,char *argv[]){
 	//dif_fd = open ("difference.txt",O_WRONLY|O_CREAT, 0666);
 	
 	//provo a entrare nella rete
-	address = start_process(&allset, &list_len);
+	address = start_process_OLD(&allset, &list_len);
 	printf("list_len %d\n", list_len);
 
 	if (is_sp == 1) {	
@@ -336,7 +395,7 @@ int main (int argc,char *argv[]){
 		}
 		//sono peer mi connetto a un sp della lista
 		print_addr_list(address,list_len);	
-		init_peer(&allset, address, list_len, &my_addr/*????*/);
+		init_peer(&allset, address, list_len, &my_addr);
 	}
 	
 	pid = clone((int(*)(void *))ping_func, &stack_p[1024], CLONE_VM, 0);

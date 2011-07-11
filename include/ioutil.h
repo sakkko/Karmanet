@@ -17,6 +17,9 @@
 
 #define LOCK_FILE "list.lck"
 
+#define LOCK_MY_SP  "my_sp.lck"
+
+
 ssize_t writen(int fd, const void *buf, size_t n);
 
 int readline(int fd, void *vptr, int maxlen);
