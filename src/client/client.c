@@ -288,6 +288,8 @@ int join_peer(const struct sockaddr_in *addr, const struct packet *pck) {
 			fprintf(stderr, "Errore in send\n");
 		}
 		printf("accettato peer %s:%d\nrate: %ld\n", inet_ntoa(addr->sin_addr), addr->sin_port, peer_rate);
+
+		printf("dimensione lista peer: %d\n",get_list_count(peer_list_head));
 	} else {
 		if (have_child) {
 			//TODO invio redirect

@@ -176,5 +176,3 @@ void check_peer_flag(void* unused) {
 		printf("work done dim = %d\n",dim); 	
 	}
 }
-
-
