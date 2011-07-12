@@ -28,8 +28,4 @@ void free_list_peer();
 
 struct peer_node *new_peer_node(const struct sockaddr_in *peer_addr, unsigned long rate); 
 
-void update_peer_flag(const struct sockaddr_in *peer_addr);
-
-void check_peer_flag(void* unused);
-
 #endif
