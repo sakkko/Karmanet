@@ -15,9 +15,11 @@
 #include <errno.h>
 #include <netinet/in.h>
 
-#define LOCK_FILE "list.lck"
+#define LOCK_FILE "list.lck"   //lock per la lista dei super peer usato dal bootstrap
 
-#define LOCK_MY_SP  "my_sp.lck"
+#define LOCK_MY_SP  "my_sp.lck"  //lock per il super peer usato dal singolo peer
+
+#define LOCK_MY_P  "my_p.lck"  //lock per la lista dei peer usato dal singolo super peer
 
 
 ssize_t writen(int fd, const void *buf, size_t n);
