@@ -106,3 +106,75 @@ void free_list_peer() {
 	}
 }
 
+/*
+* Funzione che aggiorna il flag di un indirizzo ad 1
+*/
+void update_peer_flag(const struct sockaddr_in *peer_addr) {
+
+	struct node *tmp_node;
+	
+	tmp_node = peer_list_head;
+	int lockfd;	
+	if ((lockfd = lock(LOCK_MY_P)) < 0) {
+		exit(1);
+	}		
+	while (tmp_node != NULL) {
+		if (addrcmp(&((struct peer_node *)tmp_node->data)->peer_addr, peer_addr)) {
+			((struct peer_node *)tmp_node->data)->flag = 1;
+			break;
+		}
+		tmp_node = tmp_node->next;
+	}
+
+
+	if (unlock(LOCK_MY_P, lockfd) < 0) {
+		exit(1);
+	}
+
+	return;
+}
+
+
+/*
+* Funzione che controlla i flag della lista elimina i nodi con flag 0 e setta a 0 quelli con flag 1
+*/
+void check_peer_flag(void* unused) {
+	int lockfd;	
+	int dim = 0;
+	struct node *tmp_node;
+	struct node *to_remove;
+	printf("AVVIO PROCESSO DI CONTROLLO LISTA P\n");
+	while(1){
+	  sleep(10);	
+		printf("wake up and starting work\n");
+		if ((lockfd = lock(LOCK_MY_P)) < 0) {
+			exit(1);
+		}
+
+		tmp_node = peer_list_head;
+		dim = 0;
+		while (tmp_node != NULL) {
+			dim++;
+			to_remove=tmp_node;
+			tmp_node = tmp_node->next;
+			if (((struct peer_node *)to_remove->data)->flag == 0) {
+				
+				printf("RIMOSSO PEER NON ATTIVO\n");
+				remove_peer_node((struct peer_node *)to_remove->data);
+			}
+			else{
+				printf("TROVATO FLAG A 1\n");
+				((struct peer_node *)to_remove->data)->flag=0;			
+			}
+
+		}
+
+		if (unlock(LOCK_MY_P, lockfd) < 0) {
+			exit(1);
+		}
+		
+		printf("work done dim = %d\n",dim); 	
+	}
+}
+
+

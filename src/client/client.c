@@ -131,7 +131,7 @@ int init(fd_set *fdset) {
 	retx_init();
 	
 	unlink(LOCK_MY_SP);
-	
+	unlink(LOCK_MY_P);
 	return 0;
 }
 
@@ -331,8 +331,9 @@ void udp_handler(int udp_sock, fd_set *allset) {
 			join_peer(&addr, &tmp_pck);
 			insert_request(&addr,tmp_pck.index);
 		} else if (!strncmp(tmp_pck.cmd, CMD_PING, CMD_STR_LEN)) { 
-			printf("ricevuto ping\n");
+			//printf("ricevuto ping\n");
 			//updateflag di addr
+			update_peer_flag(&addr);
 	 		new_pong_packet(&tmp_pck, tmp_pck.index);
 		 	if (mutex_send(udp_sock, &addr, &tmp_pck) < 0) {
 		 		perror ("errore in udp_send");
@@ -345,7 +346,7 @@ void udp_handler(int udp_sock, fd_set *allset) {
 	} else {
 		//sono solo peer
 		if (!strncmp(tmp_pck.cmd, CMD_PONG, CMD_STR_LEN)) { 
-			printf("ricevuto pong\n");
+			//printf("ricevuto pong\n");
 			//updateflag di addr
 			update_sp();
 		}
@@ -360,8 +361,8 @@ int main (int argc,char *argv[]){
 //	int dif_fd; //descrittore del file differenze
 //	char buf[1024];
 	fd_set rset, allset;
-	pid_t pid;
-	long stack_p[1024];
+	pid_t pid,pid_cp;
+	long stack_p[1024],stack_cp[1024];
 
 	// controlla numero degli argomenti
 	if (argc != 2) { 
@@ -387,7 +388,8 @@ int main (int argc,char *argv[]){
 
 	if (is_sp == 1) {	
 		//sono superpeer
-		init_sp(&allset, address, list_len, &my_addr); 
+		init_sp(&allset, address, list_len, &my_addr);
+		pid_cp = clone((int(*)(void *))check_peer_flag, &stack_cp[1024], CLONE_VM, 0);  
 	} else {
 		if (address == NULL) {
 			fprintf(stderr, "Errore durante la connessione\n");
