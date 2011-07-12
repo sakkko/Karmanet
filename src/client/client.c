@@ -32,7 +32,8 @@ int update_sp(){
 	if (unlock(LOCK_MY_SP, lockfd2) < 0) {
 		exit(1);
 	}
-	
+
+	return 0;
 }
 
 int check_sp(void* unused){
