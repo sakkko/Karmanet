@@ -88,3 +88,16 @@ void free_list(struct node *list) {
 	
 }
 
+/*
+* Funzione che conta gli elementi della lista
+*/
+int get_list_count(const struct node *head){
+	struct node *tmp_node;	
+	tmp_node = head;
+	int dim = 0;
+	while( tmp_node != NULL){
+		tmp_node=tmp_node->next;
+		dim++;	
+	}
+	return dim;
+}

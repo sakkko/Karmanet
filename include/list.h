@@ -17,4 +17,6 @@ struct node *remove_node(struct node *list, struct node *toremove);
 
 void free_list(struct node *list); 
 
+int get_list_count(const struct node *head);
+
 #endif
