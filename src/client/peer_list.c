@@ -36,7 +36,7 @@ void sorted_insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_
 		tmp_node = tmp_node->next;
 	}
 
-	sorted_insert_node(peer_list_head, tmp_node, new_peer_node(peer_addr, peer_rate));
+ 	peer_list_head = sorted_insert_node(peer_list_head, tmp_node, new_peer_node(peer_addr, peer_rate));
 }
 
 struct peer_node *new_peer_node(const struct sockaddr_in *peer_addr, unsigned long peer_rate) {

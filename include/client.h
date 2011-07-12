@@ -18,6 +18,7 @@
 #include "ioutil.h"
 #include "peerrate.h"
 #include "peer_list.h"
+#include "request_list.h"
 #include "packet_util.h"
 #include "retx.h"
 
