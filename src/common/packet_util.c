@@ -27,6 +27,10 @@ int new_ack_packet(struct packet *pck, short index) {
 	return new_packet(pck, CMD_ACK, index, NULL, 0, 1);
 }
 
+int new_err_packet(struct packet *pck, short index) {
+	return new_packet(pck, CMD_ERR, index, NULL, 0, 1);
+}
+
 int new_ping_packet(struct packet *pck, short index) {
 	return new_packet(pck, CMD_PING, index, NULL, 0, 1);
 }
@@ -39,13 +43,17 @@ int new_promote_packet(struct packet *pck, short index) {
 	return new_packet(pck, CMD_PROMOTE, index, NULL, 0, 1);
 }
 
-int new_redirect_packet(struct packet *pck, short index,struct sockaddr_in *child) {
+int new_register_packet(struct packet *pck, short index) {
+	return new_packet(pck, CMD_REGISTER, index, NULL, 0, 1);
+}
+
+int new_redirect_packet(struct packet *pck, short index, struct sockaddr_in *child) {
 	char str[ADDR_STR_LEN];
 	addr2str(str, child->sin_addr.s_addr, child->sin_port);
 	return new_packet(pck, CMD_REDIRECT, index, str, ADDR_STR_LEN, 1);
 }
 
-int get_pcklen (struct packet *input_pkg ){
+int get_pcklen(struct packet *input_pkg) {
 	return CMD_STR_LEN + sizeof(short) + sizeof(short) + sizeof(short) + input_pkg->data_len;
 }
  

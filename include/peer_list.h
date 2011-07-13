@@ -28,4 +28,6 @@ void free_list_peer();
 
 struct peer_node *new_peer_node(const struct sockaddr_in *peer_addr, unsigned long rate); 
 
+struct sockaddr_in *get_addr_head();
+
 #endif

@@ -290,6 +290,7 @@ int init_sp(fd_set *fdset, const struct sockaddr_in *addr, int  dim, struct sock
 	return 0;
 }
 
+
 //inizializzo un peer : iposto aarray descrittori (in caso), imposto il sp a me associato,imposto mio indirizzo ( se ricevo promote)
 int init_peer(fd_set *allset, struct sockaddr_in  *addr, int list_len, struct sockaddr_in *my_addr) {
 	int i, len;
@@ -349,25 +350,39 @@ int join_peer(const struct sockaddr_in *addr, const struct packet *pck) {
 	unsigned long peer_rate;
 	struct packet tmp_packet;
 
-	printf("ricevuto join\n");
-	peer_rate = btol(pck->data);
-
-	if (curr_p_count < MAX_P_COUNT) {
-		//posso accettare il peer
-		sorted_insert_peer(addr, peer_rate);
-		new_ack_packet(&tmp_packet, pck->index);
-		if (mutex_send(udp_sock, addr, &tmp_packet) < 0) {
-			fprintf(stderr, "Errore in send\n");
-		}
-		printf("accettato peer %s:%d\nrate: %ld\n", inet_ntoa(addr->sin_addr), addr->sin_port, peer_rate);
-
-		printf("dimensione lista peer: %d\n",get_list_count(peer_list_head));
+	if (is_sp == 0) {
+		new_err_packet(&tmp_packet, pck->index);
 	} else {
-		if (have_child) {
-			//TODO invio redirect
+		if (curr_p_count < MAX_P_COUNT) {
+			//posso accettare il peer
+			peer_rate = btol(pck->data);
+			sorted_insert_peer(addr, peer_rate);
+			new_ack_packet(&tmp_packet, pck->index);
+			printf("aggiunto peer %s:%d\nrate: %ld\n", inet_ntoa(addr->sin_addr), addr->sin_port, peer_rate);
+			printf("dimensione lista peer: %d\n", get_list_count(peer_list_head));
+			insert_request(addr, pck->index);
 		} else {
-			//TODO invio promote al best peer
+			if (have_child) {
+				new_redirect_packet(&tmp_packet, pck->index, &child_addr);
+			} else {
+				new_promote_packet(&tmp_packet, get_index());
+				if (retx_send(udp_sock, get_addr_head(), &tmp_packet) < 0) {
+					fprintf(stderr, "join_peer error: retx_send failed\n");
+					return -1;
+				} else {
+					//TODO per essere sicuri che il peer è diventato superpeer dovremmo aspettare
+					//un ack e poi settare l'indirizzo del figlio
+					addrcpy(&child_addr, get_addr_head());
+					have_child = 1;
+					return 0;
+				}
+			}
 		}
+	}
+
+	if (mutex_send(udp_sock, addr, &tmp_packet) < 0) {
+		fprintf(stderr, "join_peer error: mutex_send failed\n");
+		return -1;
 	}
 
 	return 0;
@@ -383,20 +398,12 @@ void udp_handler(int udp_sock, fd_set *allset) {
 		return;
 	}
 
-	if (strncmp(tmp_pck.cmd, CMD_PING, CMD_STR_LEN) && strncmp(tmp_pck.cmd, CMD_PONG, CMD_STR_LEN)) {
-		//interrompo ritrasmissione. I ping e i pong non vengono ritrasmessi
-		//quindi non c'è bisogno di interrompere la loro ritrasmissione
-		//!!non ho capito sta funzione interrompo la ritrasmissione di tutto tranne ping e pong
-		//infatti me dice sempre "NO THREAD FOUND FOR xxxx"
-		//!!ma non dovrei interrompere la rtx quando ricevo un ack=??????
-		retx_stop(tmp_pck.index);
-	}
-	
 	//TODO se ho già processato questa richiesta nel immediato passato rinvio l'ack
 	
 			
 	if (!strncmp(tmp_pck.cmd, CMD_ACK, CMD_STR_LEN)) {
 			//ricevuto ack
+			retx_stop(tmp_pck.index);
 	} 
 	
 	if (is_sp == 1) {

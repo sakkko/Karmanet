@@ -106,3 +106,20 @@ void free_list_peer() {
 	}
 }
 
+/*
+ * Restituisce l'indirizzo in testa alla lista.
+ * Se tutti gli inserimenti nella lista sono ordinati, restituisce 
+ * l'indirizzo con il rate maggiore.
+ * Restituiesce l'indirizzo in testa alla lista, oppure NULL se la lista è vuota.
+ */
+struct sockaddr_in *get_addr_head() {
+	if (peer_list_head == NULL) {
+		return NULL;
+	}
+	if (peer_list_head->data == NULL) {
+		return NULL;
+	}
+
+	return &((struct peer_node *)peer_list_head->data)->peer_addr;
+}
+

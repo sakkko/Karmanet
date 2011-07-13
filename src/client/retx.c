@@ -74,7 +74,7 @@ int retx_send(int socksd, const struct sockaddr_in *addr, const struct packet *p
 
 int retx_stop(int pck_index) {
 	printf("\n============ENTRO IN RETX_STOP: pck_index:%d =========\n", pck_index);
-	int i, check;
+	int i;
 	
 	pthread_mutex_lock(&retx_mutex);
 	for (i = 0; i < NTHREADS; i ++) {
