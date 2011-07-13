@@ -29,8 +29,8 @@
 #define DIM_P 		4
 #define DIM_SP 		5
 //ricordiamoci di cambiarlo
-#define TIME_CHECK_FLAG 10
-//#define TIME_TO_PING  3
+#define TIME_CHECK_FLAG 6
+#define TIME_TO_PING  2
 
 
 #define TCP_PORT 5193

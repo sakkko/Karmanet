@@ -13,7 +13,7 @@ void add_fd(int fd, fd_set *fdset) {
 int ping_func(void) {
 	struct packet tmp_pck;
 	while (1) {
-		sleep(3);
+		sleep(TIME_TO_PING);
 		new_ping_packet(&tmp_pck, get_index());	
 		if (is_sp == 1) {
 			mutex_send(udp_sock, &bs_addr, &tmp_pck);	
@@ -57,19 +57,16 @@ void update_peer_flag(const struct sockaddr_in *peer_addr) {
 */
 void check_peer_flag(void* unused) {
 	int lockfd;	
-	int dim = 0;
 	struct node *tmp_node;
 	struct node *to_remove;
 	printf("AVVIO PROCESSO DI CONTROLLO LISTA P\n");
 	while(1){
-	  sleep(10);	
-		printf("wake up and starting work\n");
+	  sleep(TIME_CHECK_FLAG);	
 		if ((lockfd = lock(LOCK_MY_P)) < 0) {
 			exit(1);
 		}
 
 		tmp_node = peer_list_head;
-		dim = 0;
 		while (tmp_node != NULL) {
 		
 			to_remove=tmp_node;
@@ -80,8 +77,6 @@ void check_peer_flag(void* unused) {
 				printf("RIMOSSO PEER NON ATTIVO\n");
 			}
 			else{
-				dim++;
-				printf("TROVATO FLAG A 1\n");
 				((struct peer_node *)to_remove->data)->flag=0;			
 			}
 
@@ -90,8 +85,7 @@ void check_peer_flag(void* unused) {
 		if (unlock(LOCK_MY_P, lockfd) < 0) {
 			exit(1);
 		}
-		
-		printf("work done dim = %d\n",dim); 	
+			
 	}
 }
 
@@ -109,12 +103,14 @@ int update_sp(){
 
 	return 0;
 }
-
+/*
+* Funzione che controlla il flag del SP elimina se flag 0 e setta a 0 se è a 1
+*/
 int check_sp(void* unused){
 	int lockfd3;	
 	printf("AVVIO PROCESSO DI CONTROLLO SP\n");
 	while(1){
-	  sleep(TIME_CHECK_FLAG);	
+	  sleep(TIME_CHECK_FLAG*2);	
 		if ((lockfd3 = lock(LOCK_MY_SP)) < 0) {
 			exit(1);
 		}
@@ -303,7 +299,7 @@ int init_peer(fd_set *allset, struct sockaddr_in  *addr, int list_len, struct so
 	len = sizeof(struct sockaddr_in);
 	
 	for (i = 0; i < list_len; i ++) { 
-		if (retx_send(udp_sock, &addr[i], &send_pck) < 0) {
+		if (retx_send(udp_sock, &addr[i], &send_pck) < 0) {//come esco dalla ritrasmissione?
 			perror ("errore in udp_send");
 		 	continue; //provo il prox indirizzo
 		}
@@ -331,7 +327,6 @@ int init_peer(fd_set *allset, struct sockaddr_in  *addr, int list_len, struct so
 	 		}	
 	 		//uso la stessa lista che ho ricevuto prima	
 	 		init_sp(allset,addr,list_len,my_addr); //divento sp
-	 		 //TODO join (bs_addr); faccio il join al server di bs
 	 		return 0;
 	 	} else if (!strcmp(recv_pck.cmd, CMD_REDIRECT)) {
 	 		//TODO leggo dal pacchetto l'indirizzo
@@ -342,11 +337,11 @@ int init_peer(fd_set *allset, struct sockaddr_in  *addr, int list_len, struct so
 	 			continue; //prova un altro indirizzo
 	 		}
 	 		//>TODO impostare la nuova lista di indirizzi aggiungendo l'indirizzo ricevuto nel redirect
-	 		//ed eliminando tutti gli indirizzi controllati finora	
+	 		//ed eliminando tutti gli indirizzi controllati finora con una free()!!!
 			//TODO init_peer (); //richiamo su indirizzo nel redirect
 		}
-	}
-	
+	}	
+
 	return 0;
 }
 
@@ -506,7 +501,7 @@ int main (int argc,char *argv[]){
 				;
 	/*    	} else if (FD_ISSET(dif_fd, &rset)) {
 	    		printf("descrittore diff attivo\n");
-			    //se ho modificato i file condivisi
+			    //se ho modificato i file condivisi si potrebbe usare la pipe per avvisare
 	    		//TODO	dif_handler ();
 	*/
 	    	} else if (FD_ISSET(tcp_listen, &rset)) {
@@ -555,9 +550,9 @@ int main (int argc,char *argv[]){
 	    		for (i = 0; i < free_sock; i ++) {
 		    		if (FD_ISSET(tcp_sock[i], &rset)) {
 		    			//TODO tcp_handler();
-						if (--ready <= 0) {
-							break;
-						}
+					if (--ready <= 0) {
+						break;
+					}
 	    			}
 	    		}
 	    	}			
