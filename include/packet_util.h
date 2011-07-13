@@ -28,6 +28,8 @@ int new_join_packet_rate(struct packet *pck, short index , long rate);
 
 int new_ack_packet(struct packet *pck, short index);
 
+int new_err_packet(struct packet *pck, short index);
+
 int new_ping_packet(struct packet *pck, short index);
 
 int new_pong_packet(struct packet *pck, short index);
@@ -35,6 +37,8 @@ int new_pong_packet(struct packet *pck, short index);
 int new_promote_packet(struct packet *pck, short index);
 
 int new_redirect_packet(struct packet *pck, short index, struct sockaddr_in *child);
+
+int new_register_packet(struct packet *pck, short index);
 
 int get_pcklen(struct packet *input_pkg);
 

@@ -66,7 +66,7 @@ long peer_rate;
 
 short start_index;
 
-struct sockaddr_in child; //ultimo promote inviato
+struct sockaddr_in child_addr; //ultimo promote inviato
 
 struct sockaddr_in bs_addr; //indirizzo del boot
 
