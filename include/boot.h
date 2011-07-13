@@ -9,7 +9,7 @@
 #include "packet_util.h"
 #include "sp_list.h"
 
-#define TIME_CHECK_FLAG 10
+#define TIME_CHECK_FLAG 6
 #define SERV_PORT 5193
 
 
