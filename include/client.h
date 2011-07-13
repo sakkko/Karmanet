@@ -60,6 +60,8 @@ short curr_child_redirect; //per contare quanti redirect ho inviato su mio figli
 
 short curr_p_count; //per contare quanti peer sono connessi a me sp
 
+int fd[2]; // usato per pipe	
+
 short is_sp;
 
 long peer_rate;

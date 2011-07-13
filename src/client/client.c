@@ -1,5 +1,8 @@
 #include "client.h"
 
+
+
+
 void add_fd(int fd, fd_set *fdset) {
 	FD_SET(fd, fdset);
 	if (fd > maxd) {
@@ -119,7 +122,7 @@ int check_sp(void* unused){
 		if(my_sp_flag == 0){
 			//rimuovere sp
 			printf("IL SUPER PEER NON RISPONDE\n");
-//			my_sp_addr.sin_addr.s_addr = 0;
+			write(fd[1], "RST", 4);//avviso la select di rifare il join al BS
 													
 		}
 		else{
@@ -311,8 +314,9 @@ int init_peer(fd_set *allset, struct sockaddr_in  *addr, int list_len, struct so
 		if (!strncmp(recv_pck.cmd, CMD_ACK, CMD_STR_LEN)) {
 			
 			my_sp_flag = 1;
+			pipe(fd);			
 			pid_csp = clone((int(*)(void *))check_sp, &stack_csp[1024], CLONE_VM, 0); 
-			
+			add_fd(fd[0], allset);			
 			//ricevuto ack
 			//connessione accettata
 			//invio la mia lista di file
@@ -445,6 +449,7 @@ int main (int argc,char *argv[]){
 	pid_t pid,pid_cp;
 	long stack_p[1024],stack_cp[1024];
 
+
 	// controlla numero degli argomenti
 	if (argc != 2) { 
 		fprintf(stderr, "Utilizzo: %s <indirizzo IP server>\n", argv[0]);
@@ -470,7 +475,9 @@ int main (int argc,char *argv[]){
 	if (is_sp == 1) {	
 		//sono superpeer
 		init_sp(&allset, address, list_len, &my_addr);
+
 		pid_cp = clone((int(*)(void *))check_peer_flag, &stack_cp[1024], CLONE_VM, 0);  
+
 	} else {
 		if (address == NULL) {
 			fprintf(stderr, "Errore durante la connessione\n");
@@ -489,39 +496,71 @@ int main (int argc,char *argv[]){
 		if ((ready = select(maxd + 1, &rset, NULL, NULL, NULL)) < 0) {
       		perror("errore in select");
       		exit(1);
-    	}
-    	
-    	if (FD_ISSET(udp_sock, &rset)){ 
-    		 udp_handler (udp_sock , &allset);
-    	} 
-    	else if (FD_ISSET(fileno(stdin), &rset)){
-    		//TODO keybord_handler ();
-			;
-/*    	} else if (FD_ISSET(dif_fd, &rset)) {
-    		printf("descrittore diff attivo\n");
-		    //se ho modificato i file condivisi
-    		//TODO	dif_handler ();
-*/
-    	} else if (FD_ISSET(tcp_listen, &rset)) {
-    		printf("descrittore listen attivo\n");
-	    	if (free_sock < MAX_TCP_SOCKET) {
-    			if ((tcp_sock[free_sock] = accept(tcp_listen, NULL, NULL)) < 0) {
-    				perror("errore in accept ");
-    				return 1;
-    			}
-	    		add_fd(tcp_sock[free_sock], &allset);
-	    		free_sock ++;
-    		}
-    	} else {
-    		for (i = 0; i < free_sock; i ++) {
-	    		if (FD_ISSET(tcp_sock[i], &rset)) {
-	    			//TODO tcp_handler();
-					if (--ready <= 0) {
-						break;
+	    	}
+	    	
+	    	if (FD_ISSET(udp_sock, &rset)){ 
+	    		 udp_handler (udp_sock , &allset);
+	    	} 
+	    	else if (FD_ISSET(fileno(stdin), &rset)){
+	    		//TODO keybord_handler ();
+				;
+	/*    	} else if (FD_ISSET(dif_fd, &rset)) {
+	    		printf("descrittore diff attivo\n");
+			    //se ho modificato i file condivisi
+	    		//TODO	dif_handler ();
+	*/
+	    	} else if (FD_ISSET(tcp_listen, &rset)) {
+	    		printf("descrittore listen attivo\n");
+		    	if (free_sock < MAX_TCP_SOCKET) {
+	    			if ((tcp_sock[free_sock] = accept(tcp_listen, NULL, NULL)) < 0) {
+	    				perror("errore in accept ");
+	    				return 1;
+	    			}
+		    		add_fd(tcp_sock[free_sock], &allset);
+		    		free_sock ++;
+	    		}
+	    	} else if(FD_ISSET(fd[0],&rset)){
+	    		char str[4];
+			read(fd[0],str,3);
+			printf("pipe: %s\n",str);
+			if(!strcmp(str,"RST")){
+				close(fd[0]);
+				close(fd[1]);
+				printf("inviare richiesta al Boostrap\n");	
+				//TODO rieseguire il nuovo start process				
+				kill(pid_csp,SIGKILL);//uccido il processo di controllo SP
+				address = start_process_OLD(&allset, &list_len);
+				printf("list_len %d\n", list_len);
+
+				if (is_sp == 1) {	
+					//sono superpeer
+					init_sp(&allset, address, list_len, &my_addr);
+
+					pid_cp = clone((int(*)(void *))check_peer_flag, &stack_cp[1024], CLONE_VM, 0);  
+
+				} else {
+					if (address == NULL) {
+						fprintf(stderr, "Errore durante la connessione\n");
+						return 1;
 					}
-    			}
-    		}
-    	}			
+					//sono peer mi connetto a un sp della lista
+					print_addr_list(address,list_len);	
+					init_peer(&allset, address, list_len, &my_addr);
+				}
+
+
+			}
+
+		} else {
+	    		for (i = 0; i < free_sock; i ++) {
+		    		if (FD_ISSET(tcp_sock[i], &rset)) {
+		    			//TODO tcp_handler();
+						if (--ready <= 0) {
+							break;
+						}
+	    			}
+	    		}
+	    	}			
 	}
 	return 0;
 }
