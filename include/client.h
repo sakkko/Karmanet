@@ -96,5 +96,19 @@ void set_rate();
 
 void add_fd(int fd, fd_set *fdset);
 
+int start_process(fd_set *fdset, struct sockaddr_in *sp_addr);
+
+int call_sp(const struct sockaddr_in *addr_to_call);
+
+int connect_to_sp(struct sockaddr_in *sp_addr, const struct sockaddr_in *addr_list, int addr_list_len);
+
+struct sockaddr_in *get_sp_list(int *len, int *error);
+
+int init_superpeer(fd_set *fdset, const struct sockaddr_in *sp_addr_list, int list_len);
+
+int join_overlay(fd_set *fdset, const struct sockaddr_in *sp_addr_list, int list_len);
+
+int set_listen_socket(fd_set *fdset);
+
 #endif
 

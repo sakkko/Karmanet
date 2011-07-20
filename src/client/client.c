@@ -1,8 +1,5 @@
 #include "client.h"
 
-
-
-
 void add_fd(int fd, fd_set *fdset) {
 	FD_SET(fd, fdset);
 	if (fd > maxd) {
@@ -10,17 +7,17 @@ void add_fd(int fd, fd_set *fdset) {
 	}	
 }
 
-int ping_func(void) {
+int ping_func(void *args) {
 	struct packet tmp_pck;
+	struct sockaddr_in *addr_to_ping = (struct sockaddr_in *)args;
+
 	while (1) {
 		sleep(TIME_TO_PING);
 		new_ping_packet(&tmp_pck, get_index());	
-		if (is_sp == 1) {
-			mutex_send(udp_sock, &bs_addr, &tmp_pck);	
-		} else {
-			mutex_send(udp_sock, &my_sp_addr, &tmp_pck);		
-		}
-	}	
+		mutex_send(udp_sock, addr_to_ping, &tmp_pck);	
+	}
+
+	return 0;
 }
 
 /*
@@ -63,6 +60,7 @@ void check_peer_flag(void* unused) {
 	while(1){
 	  sleep(TIME_CHECK_FLAG);	
 		if ((lockfd = lock(LOCK_MY_P)) < 0) {
+			fprintf(stderr, "Can't get lock\n");
 			exit(1);
 		}
 
@@ -148,7 +146,7 @@ void print_addr_list(struct sockaddr_in *addr, int dim) {
 	int i = 0;
 	int off = sizeof(struct sockaddr_in);
 	for (i = 0; i < dim; i ++) {
-		printf("%d address: %lu : %u\n", i, (unsigned long)addr[off *i].sin_addr.s_addr, addr[off *i].sin_port);
+		printf("%d address: %lu : %u\n", i, (unsigned long)addr[off * i].sin_addr.s_addr, addr[off * i].sin_port);
 	}		
 
 }
@@ -196,6 +194,7 @@ int init(fd_set *fdset) {
 	
 	FD_ZERO(fdset);
 	add_fd(fileno(stdin), fdset);
+	add_fd(udp_sock, fdset);
 
 	set_rate();
 	init_index();
@@ -206,143 +205,243 @@ int init(fd_set *fdset) {
 	return 0;
 }
 
-//processo di inizializzazione decido se sono peer o sp in caso restituisce la lista di ind
-struct sockaddr_in *start_process_OLD(fd_set *fdset, int *list_len) {
-	struct packet send_pck, recv_pck;
+/*
+ * Funzione che gestisce l'intero processo di connessione alla rete.
+ * Ritorna 0 in caso di successo e -1 in caso di errore.
+ * Quando la funzione torna senza errore il client ha effettuato il join
+ * ed è entrato completamente nella rete P2P.
+ */
+int start_process(fd_set *fdset, struct sockaddr_in *sp_addr) {
 	struct sockaddr_in *addr_list;
-		
-	//invio join al boostrap
-	new_join_packet(&send_pck, get_index()); 
-	printf("invio join\n");
-	
-	if (retx_send(udp_sock, &bs_addr, &send_pck) < 0) {
-		perror("errore in sendto");
-		return NULL;	
-	}
-	
-	printf("attendo risposta\n");
+	int addr_list_len, rc, error;
 
-	if (retx_recv(udp_sock, &recv_pck) < 0) {
-		perror("errore in recvfrom");
-		return NULL;	
+	//ottengo la lista dei superpeer dal bootstrap
+	addr_list = get_sp_list(&addr_list_len, &error);
+	if (error) {
+		fprintf(stderr, "start_process error - can't get superpeer address list from bootstrap\n");
+		return -1;
 	}
 
-	printf("ricevuti dati cmd:%s index:%d data_len:%d data:%s\n", recv_pck.cmd, recv_pck.index, recv_pck.data_len, recv_pck.data);
-		
-	add_fd(udp_sock, fdset);
-	
-	if (!strncmp(recv_pck.cmd, CMD_LIST, CMD_STR_LEN)) {
-		//ricevo lista di sp
-		// sono un peer
-		addr_list = str_to_addr(recv_pck.data, recv_pck.data_len / 6);
-		*list_len = recv_pck.data_len / 6;
-		return addr_list;
-	} else if (!strncmp(recv_pck.cmd, CMD_PROMOTE, CMD_STR_LEN)) {
-		//ricevo promote e sono il primo sp
-		printf("DIVENTO SUPER PEER\n");
-		is_sp = 1;
+
+	if (addr_list == NULL) {
+		//sono superpeer
+		if (init_superpeer(fdset, addr_list, addr_list_len) < 0) {
+			fprintf(stderr, "start_process error - init_superpeer failed\n");
+			return -1;
+		}
 	} else {
-		printf("RICEVUTI DATI NON RICONOSCIUTI\n");
+		//provo a connettermi a un superpeer della lista
+		if ((rc = connect_to_sp(sp_addr, addr_list, addr_list_len)) < 0) {
+			fprintf(stderr, "start_process error: can't connect to superpeer\n");
+			return -1;
+		}
+
+		if (rc == 1) {
+			//sono superpeer - ho ricevuto promote dal superpeer
+			if (init_superpeer(fdset, addr_list, addr_list_len) < 0) {
+				fprintf(stderr, "start_process error - init_superpeer failed\n");
+				return -1;
+			}
+		} else {
+			//sono peer
+			printf("Sono peer, il mio superpeer è %s:%d\n", inet_ntoa(sp_addr->sin_addr), ntohs(sp_addr->sin_port));
+		}
+
 	}
-	
-	return NULL;
+
+ 
+	return 0;
 }
 
-//inizializzo un sp imposto array descrittori,imposto il mio indirizzo,mi connetto a chi posso
-int init_sp(fd_set *fdset, const struct sockaddr_in *addr, int  dim, struct sockaddr_in *my_addr) {
-	int i;
-	
-	//devo inviare il register al bs
-	
+/*
+ * Funzione che inizializza la socket di ascolto tcp.
+ * Ritorna 0 in caso successo e -1 in caso di errore.
+ */
+int set_listen_socket(fd_set *fdset) {
+	struct sockaddr_in my_addr;
+
 	if ((tcp_listen = tcp_socket()) < 0) {
-		perror("errore in socket");
+		perror("set_listen_socket error - can't initialize tcp socket");
 		return -1;
 	}
 	
-	set_addr_any(my_addr, TCP_PORT);
-	if (inet_bind(tcp_listen, my_addr)){
-		perror ("errore in bind");
+	set_addr_any(&my_addr, TCP_PORT);
+	if (inet_bind(tcp_listen, &my_addr)){
+		perror ("set_listen_socket error - bind failed on tcp socket");
 		return -1;
 	}
 	
 	if (listen(tcp_listen, BACKLOG) < 0) {
-		perror("errore in listen");
+		perror ("set_listen_socket error - listen failed on tcp socket");
 		return -1;
 	}
-	
+
 	add_fd(tcp_listen, fdset);
-	
-	if (addr != NULL){
-		for (i = 0;  i < dim; i ++) {
-			tcp_sock[free_sock] = tcp_socket();
-			if (tcp_connect(tcp_sock[free_sock], &addr[i]) < 0){
-				printf("fallito tentaativo di connessione\n");
-				close(tcp_sock[free_sock]);
-				continue; //provo il prossimo indirizzo
-			} else {
-				add_fd(tcp_sock[free_sock], fdset);
-				free_sock ++;
-			}
-		}
-	}
 
 	return 0;
 }
 
+/*
+ * Funzione prova a connetersi ai superpeer indicati nella lista passata come parametro.
+ * Ritorna 0 in caso di successo e -1 se si è verificato un errore o se non è riuscita
+ * a connettersi a nessun superpeer della lista.
+ */
+int join_overlay(fd_set *fdset, const struct sockaddr_in *sp_addr_list, int list_len) {
+	int i, ok = 1;
 
-//inizializzo un peer : iposto aarray descrittori (in caso), imposto il sp a me associato,imposto mio indirizzo ( se ricevo promote)
-int init_peer(fd_set *allset, struct sockaddr_in  *addr, int list_len, struct sockaddr_in *my_addr) {
-	int i, len;
-	struct packet send_pck, recv_pck;
+	for (i = 0;  i < list_len; i ++) {
+		if (ok) {
+			if ((tcp_sock[free_sock] = tcp_socket()) < 0) {
+				perror("join_overlay error - can't initialize tcp socket");
+				return -1;
+			}
+		}
+		if (tcp_connect(tcp_sock[free_sock], &sp_addr_list[i]) < 0){
+			perror("join_overlay error - can't connect to superpeer");
+			ok = 0;
+			continue; //provo il prossimo indirizzo
+		} else {
+			printf("Connected with superpeer %s:%d\n", inet_ntoa(sp_addr_list[i].sin_addr), ntohs(sp_addr_list[i].sin_port));
+			ok = 1;
+			add_fd(tcp_sock[free_sock], fdset);
+			free_sock ++;
+		}
+	}
 
-	new_join_packet_rate(&send_pck, get_index(), peer_rate);
-	len = sizeof(struct sockaddr_in);
-	
-	for (i = 0; i < list_len; i ++) { 
-		if (retx_send(udp_sock, &addr[i], &send_pck) < 0) {//come esco dalla ritrasmissione?
-			perror ("errore in udp_send");
-		 	continue; //provo il prox indirizzo
-		}
-		if (retx_recvfrom(udp_sock, &my_sp_addr, &recv_pck, &len) < 0) {
-			perror ("errore in udp_recv");
-			continue; //prova ancora
-		}
-		if (!strncmp(recv_pck.cmd, CMD_ACK, CMD_STR_LEN)) {
-			
-			my_sp_flag = 1;
-			pipe(fd);			
-			pid_csp = clone((int(*)(void *))check_sp, &stack_csp[1024], CLONE_VM, 0); 
-			add_fd(fd[0], allset);			
-			//ricevuto ack
-			//connessione accettata
-			//invio la mia lista di file
-			//TODO send_my_file () 
-			return 0;
-		} else if (!strcmp(recv_pck.cmd, CMD_PROMOTE)) { 
-			//ricevuto promote
-			new_ack_packet(&send_pck, recv_pck.index);
-	 		if(mutex_send(udp_sock, &my_sp_addr, &send_pck) < 0){
-	 			perror ("errore in udp_send");
-	 			return -1;
-	 		}	
-	 		//uso la stessa lista che ho ricevuto prima	
-	 		init_sp(allset,addr,list_len,my_addr); //divento sp
-	 		return 0;
-	 	} else if (!strcmp(recv_pck.cmd, CMD_REDIRECT)) {
-	 		//TODO leggo dal pacchetto l'indirizzo
-	 		retx_stop(recv_pck.index);
-	 		new_ack_packet(&send_pck, recv_pck.index);
-	 		if (mutex_send(udp_sock, &my_sp_addr, &send_pck) < 0) {
-	 			perror ("errore in udp_send");
-	 			continue; //prova un altro indirizzo
-	 		}
-	 		//>TODO impostare la nuova lista di indirizzi aggiungendo l'indirizzo ricevuto nel redirect
-	 		//ed eliminando tutti gli indirizzi controllati finora con una free()!!!
-			//TODO init_peer (); //richiamo su indirizzo nel redirect
-		}
-	}	
+	if (!ok) {
+		close(tcp_sock[free_sock]);
+	}
+
+	if (free_sock == 0) {
+		return -1;
+	}
 
 	return 0;
+	
+}
+
+/*
+ * Funzione di inizializzazione del superpeer.
+ */
+int init_superpeer(fd_set *fdset, const struct sockaddr_in *sp_addr_list, int list_len) {
+
+	//inizializzo socket di ascolto
+	if (set_listen_socket(fdset) < 0) {
+		fprintf(stderr, "init_superpeer error - set_listen_socket failed\n");
+		return -1;
+	}
+
+	if (sp_addr_list != NULL) {
+		//provo a connettermi agli altri superpeer
+		if (join_overlay(fdset, sp_addr_list, list_len) < 0) {
+			fprintf(stderr, "init_superpeer error - join_overlay failed\n");
+			return -1;
+		}
+	}
+
+	is_sp = 1;
+
+	return 0;
+	
+}
+
+/*
+ * Funzione che richiede al server di bootstrap la lista di indirizzi dei superpeer 
+ * presenti nella rete e setta la veriabile error in caso di errori.
+ * Ritorna la lista degli indirizzi dei superpeer oppure NULL se il peer p stato
+ * promosso superpeer dal bootstap. In caso di errore ritorna NULL e la variabile
+ * error è impostata a 1.
+ */
+struct sockaddr_in *get_sp_list(int *len, int *error) {
+	struct packet send_pck, recv_pck;
+
+	new_join_packet(&send_pck, get_index()); 
+	if (retx_send(udp_sock, &bs_addr, &send_pck) < 0) {
+		perror("errore in sendto");
+		*error = 1;
+		return NULL;	
+	}
+	
+	printf("attendo risposta\n");
+	if (retx_recv(udp_sock, &recv_pck) < 0) {
+		perror("errore in recvfrom");
+		*error = 1;
+		return NULL;	
+	}
+
+	printf("ricevuti dati cmd:%s index:%d data_len:%d data:%s\n", recv_pck.cmd, recv_pck.index, recv_pck.data_len, recv_pck.data);
+	if (!strncmp(recv_pck.cmd, CMD_PROMOTE, CMD_STR_LEN)) {
+		is_sp = 1;
+		*error = 0;
+		return NULL;
+	} else if (!strncmp(recv_pck.cmd, CMD_LIST, CMD_STR_LEN)) {
+		*len = recv_pck.data_len / 6;
+		*error = 0;
+		return str_to_addr(recv_pck.data, *len);
+	} else {
+		fprintf(stderr, "comando non riconosciuto\n");
+		*error = 1;
+		return NULL;
+	}
+}
+
+/*
+ * Funzione che prova a connettersi ad un superpeer tra quelli contenuti nella lista passata
+ * come parametro e setta l'indirizzo del superpeer a cui si è connesso.
+ * Ritorna 0 in caso di successo, 1 se il peer è stato promosso superpeer e -1 in caso di errore.
+ */
+int connect_to_sp(struct sockaddr_in *sp_addr, const struct sockaddr_in *addr_list, int addr_list_len) {
+	int i, ret;
+	
+	for (i = 0; i < addr_list_len; i ++) {
+		if ((ret = call_sp(&addr_list[i])) < 0) {
+			fprintf(stderr, "get_sp_addr error: call_sp failed\n");
+			continue;
+		} else {
+			break;
+		}
+	}
+	
+	if (ret == 0) {
+		addrcpy(sp_addr, &addr_list[i]);
+	}
+
+	return ret;
+}
+
+/*
+ * Funzione che prova a connettersi al superpeer il cui indirizzo è passato per parametro. 
+ * Se il superpeer risponde con un redirect la funzione richiama se stessa con l'indirizzo
+ * indicato nel campo dati del pacchetto redirect.
+ * Ritorna -1 in caso di errore, 0 se il peer si è connesso al superpeer, 
+ * 1 se il peer è stato promosso superpeer (ha ricevuto promote dal superpeer).
+ */
+int call_sp(const struct sockaddr_in *addr_to_call) {
+	struct packet send_pck, recv_pck;
+	struct sockaddr_in tmp_addr;
+
+	new_join_packet_rate(&send_pck, get_index(), peer_rate);
+
+	if (retx_send(udp_sock, addr_to_call, &send_pck) < 0) {
+		fprintf(stderr, "call_sp error: retx_send failed\n");
+	} else {
+		if (retx_recv(udp_sock, &recv_pck) < 0) {
+			fprintf(stderr, "get_sp_addr error: retx_recv failed\n");
+		 } else {
+			 if (!strncmp(recv_pck.cmd, CMD_ACK, CMD_STR_LEN)) {
+				 return 0;
+			 } else if (!strncmp(recv_pck.cmd, CMD_REDIRECT, CMD_STR_LEN)) {
+				 if (recv_pck.data_len != 0) {
+					 str2addr(&tmp_addr, recv_pck.data);
+					 return call_sp(&tmp_addr);
+				 }
+			} else if (!strncmp(recv_pck.cmd, CMD_PROMOTE, CMD_STR_LEN)) {
+				return  1;
+			} 
+		 }
+	}
+
+	return -1;
 }
 
 int join_peer(const struct sockaddr_in *addr, const struct packet *pck) {
@@ -413,6 +512,7 @@ void udp_handler(int udp_sock, fd_set *allset) {
 		} else if (!strncmp(tmp_pck.cmd, CMD_PING, CMD_STR_LEN)) { 
 			//printf("ricevuto ping\n");
 			//updateflag di addr
+			printf("Ricevuto ping da %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 			update_peer_flag(&addr);
 	 		new_pong_packet(&tmp_pck, tmp_pck.index);
 		 	if (mutex_send(udp_sock, &addr, &tmp_pck) < 0) {
@@ -428,22 +528,35 @@ void udp_handler(int udp_sock, fd_set *allset) {
 		if (!strncmp(tmp_pck.cmd, CMD_PONG, CMD_STR_LEN)) { 
 			//printf("ricevuto pong\n");
 			//updateflag di addr
+			printf("Ricevuto pong da superpeer\n");
 			update_sp();
 		}
 	}
 }
 
+/*
+ * Funzione di terminazione del processo. Chiude la pipe e ferma i processi
+ * di controllo e di ping.
+ */
+int end_process(fd_set *allset, pid_t pid_csp, pid_t pid_cp, pid_t pid) {
+	close(fd[0]);
+	close(fd[1]);
+	FD_CLR(fd[0], allset);
+	kill(pid_csp,SIGKILL);//uccido il processo di controllo SP
+	kill(pid, SIGKILL);//uccido il processo di controllo SP
+	kill(pid_cp, SIGKILL);//uccido il processo di controllo SP
+	
+	return 0;
+}
+
 int main (int argc,char *argv[]){
-	struct sockaddr_in  *address; //indirizzi ricevuti dal bs
-	struct sockaddr_in my_addr; //mio indirizzo (quando sono sp)
-	int list_len = 0, i; //lunghezza indirizzi ricevuti
+	int i; //lunghezza indirizzi ricevuti
 	int ready;
-//	int dif_fd; //descrittore del file differenze
-//	char buf[1024];
 	fd_set rset, allset;
 	pid_t pid,pid_cp;
 	long stack_p[1024],stack_cp[1024];
 
+	struct sockaddr_in sp_addr;
 
 	// controlla numero degli argomenti
 	if (argc != 2) { 
@@ -461,29 +574,26 @@ int main (int argc,char *argv[]){
 		return 1;
 	}
 	
-	//dif_fd = open ("difference.txt",O_WRONLY|O_CREAT, 0666);
-	
 	//provo a entrare nella rete
-	address = start_process_OLD(&allset, &list_len);
-	printf("list_len %d\n", list_len);
-
-	if (is_sp == 1) {	
-		//sono superpeer
-		init_sp(&allset, address, list_len, &my_addr);
-
-		pid_cp = clone((int(*)(void *))check_peer_flag, &stack_cp[1024], CLONE_VM, 0);  
-
-	} else {
-		if (address == NULL) {
-			fprintf(stderr, "Errore durante la connessione\n");
-			return 1;
-		}
-		//sono peer mi connetto a un sp della lista
-		print_addr_list(address,list_len);	
-		init_peer(&allset, address, list_len, &my_addr);
+	if (start_process(&allset, &sp_addr) < 0) {
+		fprintf(stderr, "Initialization error - abort\n");
+		return 1;
 	}
-	
-	pid = clone((int(*)(void *))ping_func, &stack_p[1024], CLONE_VM, 0);
+
+
+	if (is_sp) {
+		//faccio partire il processo che controlla la lista peer 
+		pid_cp = clone((int(*)(void *))check_peer_flag, &stack_cp[1024], CLONE_VM, 0);  
+		//faccio partire il processo dei ping
+		pid = clone((int(*)(void *))ping_func, &stack_p[1024], CLONE_VM, &bs_addr);
+	} else {
+		//faccio partire il processo dei ping
+		pid = clone((int(*)(void *))ping_func, &stack_p[1024], CLONE_VM, &sp_addr);
+		my_sp_flag = 1;
+		pipe(fd);			
+		pid_csp = clone((int(*)(void *))check_sp, &stack_csp[1024], CLONE_VM, 0); 
+		add_fd(fd[0], &allset);			
+	}
 
 	//main loop - select	
 	while (1) {
@@ -519,30 +629,22 @@ int main (int argc,char *argv[]){
 			read(fd[0],str,3);
 			printf("pipe: %s\n",str);
 			if(!strcmp(str,"RST")){
-				close(fd[0]);
-				close(fd[1]);
-				printf("inviare richiesta al Boostrap\n");	
-				//TODO rieseguire il nuovo start process				
-				kill(pid_csp,SIGKILL);//uccido il processo di controllo SP
-				address = start_process_OLD(&allset, &list_len);
-				printf("list_len %d\n", list_len);
+				end_process(&allset, pid_csp, pid_cp, pid);
+				start_process(&allset, &sp_addr);
 
-				if (is_sp == 1) {	
-					//sono superpeer
-					init_sp(&allset, address, list_len, &my_addr);
-
+				if (is_sp) {
+					//faccio partire il processo che controlla la lista peer 
 					pid_cp = clone((int(*)(void *))check_peer_flag, &stack_cp[1024], CLONE_VM, 0);  
-
+					//faccio partire il processo dei ping
+					pid = clone((int(*)(void *))ping_func, &stack_p[1024], CLONE_VM, &bs_addr);
 				} else {
-					if (address == NULL) {
-						fprintf(stderr, "Errore durante la connessione\n");
-						return 1;
-					}
-					//sono peer mi connetto a un sp della lista
-					print_addr_list(address,list_len);	
-					init_peer(&allset, address, list_len, &my_addr);
+					//faccio partire il processo dei ping
+					pid = clone((int(*)(void *))ping_func, &stack_p[1024], CLONE_VM, &sp_addr);
+					my_sp_flag = 1;
+					pipe(fd);			
+					pid_csp = clone((int(*)(void *))check_sp, &stack_csp[1024], CLONE_VM, 0); 
+					add_fd(fd[0], &allset);			
 				}
-
 
 			}
 
