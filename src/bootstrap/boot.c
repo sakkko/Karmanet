@@ -188,7 +188,7 @@ int check_flag(void *unused) {
 	struct node *tmp_node, *it;
 	struct spaddr_node *spaddr_tmp;
 	int lockfd;	
-	
+	int dim=0;
 	while (1) {
 		sleep(TIME_CHECK_FLAG);
 		if ((lockfd = lock(LOCK_FILE)) < 0) {
@@ -196,7 +196,9 @@ int check_flag(void *unused) {
 		}
 		
 		it = sp_list_head;
+		dim =0;
 		while (it != NULL) {
+			
 			spaddr_tmp = (struct spaddr_node *)it->data;
 			tmp_node = it;
 			it = it->next;
@@ -204,11 +206,12 @@ int check_flag(void *unused) {
 				printf("cancello nodo: %lu:%u\n", (unsigned long)spaddr_tmp->sp_addr.sin_addr.s_addr, spaddr_tmp->sp_addr.sin_port);
 				remove_sp_node(tmp_node);
 			} else {
+				dim++;
 				spaddr_tmp->flag = 0;
 				printf("Imposto flag: 0 per %lu:%u\n", (unsigned long)spaddr_tmp->sp_addr.sin_addr.s_addr, spaddr_tmp->sp_addr.sin_port);
 			}
 		}
-		
+		printf("trovati %d super peer\n",dim);
 		if (unlock(LOCK_FILE, lockfd) < 0) {
 			exit(1);
 		} 
