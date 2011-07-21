@@ -257,6 +257,7 @@ int start_process(fd_set *fdset, struct sockaddr_in *sp_addr) {
  * Funzione che inizializza la socket di ascolto tcp.
  * Ritorna 0 in caso successo e -1 in caso di errore.
  */
+ 
 int set_listen_socket(fd_set *fdset) {
 	struct sockaddr_in my_addr;
 
@@ -324,7 +325,7 @@ int join_overlay(fd_set *fdset, const struct sockaddr_in *sp_addr_list, int list
  * Funzione di inizializzazione del superpeer.
  */
 int init_superpeer(fd_set *fdset, const struct sockaddr_in *sp_addr_list, int list_len) {
-
+	printf("INIT SUPER PEER\n");
 	//inizializzo socket di ascolto
 	if (set_listen_socket(fdset) < 0) {
 		fprintf(stderr, "init_superpeer error - set_listen_socket failed\n");
@@ -459,7 +460,9 @@ int join_peer(const struct sockaddr_in *addr, const struct packet *pck) {
 			printf("aggiunto peer %s:%d\nrate: %ld\n", inet_ntoa(addr->sin_addr), addr->sin_port, peer_rate);
 			printf("dimensione lista peer: %d\n", get_list_count(peer_list_head));
 			insert_request(addr, pck->index);
+			curr_p_count++;
 		} else {
+			printf("troppi P!!!\n");
 			if (have_child) {
 				new_redirect_packet(&tmp_packet, pck->index, &child_addr);
 			} else {
@@ -490,6 +493,10 @@ void udp_handler(int udp_sock, fd_set *allset) {
 	struct packet tmp_pck;
 	struct sockaddr_in addr;
 	int len = sizeof(struct sockaddr_in); 
+	struct sockaddr_in *addr_list;
+	int error;
+	int list_len;
+	
 	
 	if (recvfrom_packet(udp_sock, &addr, &tmp_pck, &len) < 0) {
 		printf("ERRORE RECV_PACKET\n");
@@ -531,6 +538,30 @@ void udp_handler(int udp_sock, fd_set *allset) {
 			printf("Ricevuto pong da superpeer\n");
 			update_sp();
 		}
+		else if (!strncmp(tmp_pck.cmd, CMD_PROMOTE, CMD_STR_LEN)) { 
+			printf("\n\n\nRICEVUTO PROMOTE\n\n\n");
+
+			//updateflag di addr
+	 		new_ack_packet(&tmp_pck, tmp_pck.index);
+		 	if (mutex_send(udp_sock, &addr, &tmp_pck) < 0) {
+		 		perror ("errore in udp_send");
+		 	}
+		 	printf("richiedo lista sp\n");
+			addr_list = get_sp_list(&list_len, &error);
+			if (error) {
+				fprintf(stderr, "udp_handler - can't get superpeer address list from bootstrap\n");
+			}
+			
+		 	printf("provo init sp\n");
+			init_superpeer(allset,addr_list,list_len);
+			
+		 	printf("invio register\n");
+		 	new_register_packet(&tmp_pck, get_index());
+			if (retx_send(udp_sock, &bs_addr, &tmp_pck) < 0) {
+				perror("errore in udp_send");
+			}
+		}
+		
 	}
 }
 
@@ -550,6 +581,8 @@ int end_process(fd_set *allset, pid_t pid_csp, pid_t pid_cp, pid_t pid) {
 }
 
 int main (int argc,char *argv[]){
+	fork();
+	fork();
 	int i; //lunghezza indirizzi ricevuti
 	int ready;
 	fd_set rset, allset;

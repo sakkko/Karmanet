@@ -37,7 +37,7 @@
 #define UDP_PORT 5193
 #define BS_PORT 5193
 
-#define MAX_P_COUNT 20  //numero massimo di peer connessi a me stesso
+#define MAX_P_COUNT 4  //numero massimo di peer connessi a me stesso
 #define MAX_REDIRECT_COUNT 10 //numero massimo di redirect
 
 #define MAX_TCP_SOCKET 6
