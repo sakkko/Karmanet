@@ -42,7 +42,7 @@ long btol(const char *str);
 
 short btos(const char *str);
 
-short get_rand();
+unsigned short get_rand();
 
 #endif
 

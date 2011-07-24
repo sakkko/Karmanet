@@ -8,22 +8,18 @@
 #include "inetutil.h"
 #include "packet_util.h"
 #include "sp_list.h"
+#include "sp_list_checker.h"
 
 #define TIME_CHECK_FLAG 6
 #define SERV_PORT 5193
 
+int sp_join(int sockfd, const struct sockaddr_in *addr, const struct packet *pck, struct sp_list_checker_info *splchinfo);
 
-int ping(const struct sockaddr_in *addr);
+int sp_leave(int sockfd, const struct sockaddr_in *addr, const struct packet *pck, struct sp_list_checker_info *splchinfo);
 
-int leave(int sockfd, const struct sockaddr_in *addr, const struct packet *pck);
+int sp_register(int sockfd, const struct sockaddr_in *addr, const struct packet *pck, struct sp_list_checker_info *splchinfo);
 
 int send_addr_list(int sockfd, const struct sockaddr_in *addr, const struct packet *pck);
-
-int join(int sockfd, const struct sockaddr_in *addr, const struct packet *pck);
-
-int check_flag(void *unused);
-
-int set_sp_flag(const struct sockaddr_in *addr, short flag_value);
 
 int set_str_addrlist(char *str);
 

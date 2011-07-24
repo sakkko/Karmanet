@@ -1,5 +1,8 @@
 #include "list.h"
 
+/*
+* Funzione che inserisce un indirizzo in testa alla lista.
+*/
 struct node *insert_node(struct node *list, void *data) {
 	struct node *new_node;
 	
@@ -19,6 +22,9 @@ struct node *insert_node(struct node *list, void *data) {
 	return new_node;
 }
 
+/*
+* Funzione che inserisce un indirizzo in mezzo alla lista.
+*/
 struct node *sorted_insert_node(struct node *list, struct node *prev_node, void *data) {
 	struct node *new_node;
 	
@@ -45,6 +51,9 @@ struct node *sorted_insert_node(struct node *list, struct node *prev_node, void 
 	return list;
 }
 
+/*
+* Funzione che rimuove un nodo dalla lista.
+*/
 struct node *remove_node(struct node *list, struct node *toremove) {
 	if (toremove == NULL) {
 		return list;
@@ -77,6 +86,9 @@ struct node *remove_node(struct node *list, struct node *toremove) {
 	return list;
 }
 
+/*
+* Funzione che elimina l'intera lista
+*/
 void free_list(struct node *list) {
 	struct node *it = list;
 	
@@ -96,8 +108,9 @@ int get_list_count(const struct node *head){
 	tmp_node = head;
 	int dim = 0;
 	while( tmp_node != NULL){
-		tmp_node=tmp_node->next;
-		dim++;	
+		tmp_node = tmp_node->next;
+		dim ++;	
 	}
 	return dim;
 }
+

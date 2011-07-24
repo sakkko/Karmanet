@@ -1,40 +1,17 @@
 #include "boot.h"
 
 /*
- * Funzione che gestisce il comando ping. Questo comando viene inviato dai
- * superpeer per notificare la loro presenza. Il flag di presenza relativo
- * al superpeer viene agigornato.
- * Ritorna 0 in caso di successo, e -1 in caso di errore.
- */
-int ping(const struct sockaddr_in *addr) {
-	int lockfd;
-	
-	if ((lockfd = lock(LOCK_FILE)) < 0) {
-		return -1;
-	}
-
-	if (set_sp_flag(addr, 1) == -1){
-		fprintf(stderr, "errore ping\n");
-	}
-	
-	if(unlock(LOCK_FILE, lockfd) < 0){
-		return -1;
-	}
-	
-	return 0;	
-}
-
-/*
  * Funzione che gestisce il comando register. Questo comando viene inviato da un peer
  * per informare il bootstrap che è diventato superpeer. L'indirizzo del peer viene
  * aggiunto alla lista di superpeer.
  * Ritorna 0 in caso di successo, e -1 in caso di errore.
  */
-int sp_register(int sockfd, const struct sockaddr_in *addr, const struct packet *pck) {
+int sp_register(int sockfd, const struct sockaddr_in *addr, const struct packet *pck, struct sp_list_checker_info *splchinfo) {
 	struct packet send_pack;
-	int lockfd;
-	
-	if ((lockfd = lock(LOCK_FILE)) < 0) {
+	int rc;
+
+	if ((rc = pthread_mutex_lock(&splchinfo->thinfo.mutex)) != 0) {
+		fprintf(stderr, "sp_register error - can't acquire lock: %s\n", strerror(rc));
 		return -1;
 	}
 	
@@ -45,7 +22,8 @@ int sp_register(int sockfd, const struct sockaddr_in *addr, const struct packet 
 		//RITORNO ????
 	}
 	
-	if (unlock(LOCK_FILE, lockfd) < 0) {
+	if ((rc = pthread_mutex_unlock(&splchinfo->thinfo.mutex)) != 0) {
+		fprintf(stderr, "sp_register error - can't release lock: %s\n", strerror(rc));
 		return -1;
 	}
 			
@@ -65,17 +43,19 @@ int sp_register(int sockfd, const struct sockaddr_in *addr, const struct packet 
  * dalla lista degli indirizzi.
  * Ritorna 0 in caso di successo, e -1 in caso di errore.
  */
-int sp_leave(int sockfd, const struct sockaddr_in *addr, const struct packet *pck) {
-	int lockfd;
+int sp_leave(int sockfd, const struct sockaddr_in *addr, const struct packet *pck, struct sp_list_checker_info *splchinfo) {
 	struct packet ack_packet;
-	
-	if((lockfd = lock(LOCK_FILE)) < 0){
+	int rc;
+
+	if ((rc = pthread_mutex_lock(&splchinfo->thinfo.mutex)) != 0) {
+		fprintf(stderr, "sp_leave error - can't acquire lock: %s\n", strerror(rc));
 		return -1;
 	}
 	
 	remove_sp(addr);   	
 	
-	if(unlock(LOCK_FILE, lockfd) < 0){
+	if ((rc = pthread_mutex_unlock(&splchinfo->thinfo.mutex)) != 0) {
+		fprintf(stderr, "sp_leave error - can't release lock: %s\n", strerror(rc));
 		return -1;
 	}
 	
@@ -88,6 +68,10 @@ int sp_leave(int sockfd, const struct sockaddr_in *addr, const struct packet *pc
 	return 0;
 }
 
+/*
+ * Funzione che scrive gli indirizzi da iviare in byte nella stringa passata come parametro.
+ * Ritorna il numero di indirizzo scritti nella stringa.
+ */
 int set_str_addrlist(char *str) {
 	char *ptr;
 	int i, ret;
@@ -110,6 +94,11 @@ int set_str_addrlist(char *str) {
 	return ret;
 }
 
+/*
+ * Funzione che invia la lista degli indirizzi dei superpeer al client il cui indirizzo è
+ * passato come parametro.
+ * Ritorna 0 in caso di successo e -1 in caso di errore.
+ */
 int send_addr_list(int sockfd, const struct sockaddr_in *addr, const struct packet *pck) {
 	char str_to_send[ADDR_STR_LEN * ADDR_TOSEND]; 
 	int dim;
@@ -125,114 +114,55 @@ int send_addr_list(int sockfd, const struct sockaddr_in *addr, const struct pack
 	return 0;
 }
 
-int set_sp_flag(const struct sockaddr_in *addr, short flag_value) {
-	 struct spaddr_node *sp_node;
-	 struct node *tmp_node;
-
-	 tmp_node = get_node_sp(addr);
-
-	 if (tmp_node == NULL) {
-		printf("Indirizzo non trovato\n");
-		return -1;
-	 }
-	 
-	 sp_node = (struct spaddr_node *)tmp_node->data;
-	 
-	 if (sp_node == NULL) {
-		printf("Errore in set_sp_flag: data è NULL\n");
-		return -1;	 
-	 }
-	 
-	 sp_node->flag = flag_value;
-	 
-	return 0;
-}
-
-int join(int sockfd, const struct sockaddr_in *addr, const struct packet *pck) {
-	int lockfd;
+/*
+ * Funzione che gestisce il comando JOIN. Questo comando è inviato da un client che
+ * vuole entrare nella rete. Il bootstrap invia in risposta la lista degli indirizzi
+ * dei superpeer, oppure PROMOTE se la lista è vuota e in tal caso salva l'indirizzo
+ * del client nella lista dei superpeer.
+ * Ritorna 0 in caso di successo e -1 in caso di errore.
+ */
+int sp_join(int sockfd, const struct sockaddr_in *addr, const struct packet *pck, struct sp_list_checker_info *splchinfo) {
 	struct packet promote;
-	
-	if ((lockfd = lock(LOCK_FILE)) < 0) {
+	int rc;
+
+	if ((rc = pthread_mutex_lock(&splchinfo->thinfo.mutex)) != 0) {
+		fprintf(stderr, "join error - can't acquire lock: %s\n", strerror(rc));
 		return -1;
 	}
 	
 	if (sp_list_head == NULL) {
-		if(unlock(LOCK_FILE, lockfd) < 0) {
-			return -1;
-		}
 		printf("lista vuota inviato promote\n");
 		new_promote_packet(&promote, pck->index);
+
 		if (send_packet(sockfd, addr, &promote) < 0) {
 			perror("errore in sendto");
 		}
-		if ((lockfd = lock(LOCK_FILE)) < 0) {
-			return -1;
-		}
 		insert_sp(addr);
-		if(unlock(LOCK_FILE, lockfd) < 0) {
-			return -1;
-		}	
+
 	} else {
-		if(unlock(LOCK_FILE, lockfd) < 0) {
-			return -1;
-		}	
 		if (send_addr_list(sockfd, addr, pck) < 0) {
 			perror("errore invio lista IP");
 		}
 	}
 	
-	return 0;
-}
-
-int check_flag(void *unused) {
-	struct node *tmp_node, *it;
-	struct spaddr_node *spaddr_tmp;
-	int lockfd;	
-	int dim=0;
-	while (1) {
-		sleep(TIME_CHECK_FLAG);
-		if ((lockfd = lock(LOCK_FILE)) < 0) {
-			exit(1);
-		}
-		
-		it = sp_list_head;
-		dim =0;
-		while (it != NULL) {
-			
-			spaddr_tmp = (struct spaddr_node *)it->data;
-			tmp_node = it;
-			it = it->next;
-			if (spaddr_tmp->flag == 0) {
-				printf("cancello nodo: %lu:%u\n", (unsigned long)spaddr_tmp->sp_addr.sin_addr.s_addr, spaddr_tmp->sp_addr.sin_port);
-				remove_sp_node(tmp_node);
-			} else {
-				dim++;
-				spaddr_tmp->flag = 0;
-				printf("Imposto flag: 0 per %lu:%u\n", (unsigned long)spaddr_tmp->sp_addr.sin_addr.s_addr, spaddr_tmp->sp_addr.sin_port);
-			}
-		}
-		printf("trovati %d super peer\n",dim);
-		if (unlock(LOCK_FILE, lockfd) < 0) {
-			exit(1);
-		} 
+	if ((rc = pthread_mutex_unlock(&splchinfo->thinfo.mutex)) != 0) {
+		fprintf(stderr, "join error - can't release lock: %s\n", strerror(rc));
+		return -1;
 	}
-	
+
 	return 0;
-
 }
-
 
 int main(int argc, char **argv) {
 	int sockfd;
-  	int stack_p[1024];
   	int len;
   	struct sockaddr_in addr;
-// 	char buff[MAX_PACKET_SIZE];
-  	pid_t pid;
   	char str[15];
 	int n;
 	struct packet recv_pck;
- 	char strcmd[4];
+ 	char strcmd[CMD_STR_LEN + 1];
+
+	struct sp_list_checker_info spl_check_info;
 
     if ((sockfd = udp_socket()) < 0) {
         perror("socket error");
@@ -245,9 +175,13 @@ int main(int argc, char **argv) {
         return 1;
      }
 
-	//elimino file lock se esiste
-	unlink(LOCK_FILE);
-	pid = clone((int (*)(void *))check_flag, &stack_p[1024], CLONE_VM, 0);
+	//inizializzo struttura da passare al thread che controlla la lista dei superpeer
+	spl_check_info.sp_list = &sp_list_head;
+	//faccio partire il thread che controlla la lista di superpeer
+	if (sp_list_checker_run(&spl_check_info) < 0) {
+		fprintf(stderr, "Can't start superpeer list checker\n");
+		return 1;
+	}
 	
 	len = sizeof(struct sockaddr_in);
 	
@@ -257,6 +191,7 @@ int main(int argc, char **argv) {
 			return 1;
 		}
 		strncpy(strcmd, recv_pck.cmd, CMD_STR_LEN);
+		strcmd[CMD_STR_LEN] = 0;
 		inet_ntop(AF_INET, &addr.sin_addr, str, 15);
 		printf("ricevuto pachetto\n");
 		printf("from %s:%d\n", str,ntohs(addr.sin_port));
@@ -264,19 +199,23 @@ int main(int argc, char **argv) {
 		printf("cmd:%s\n", strcmd);
 
 		if (!strncmp(recv_pck.cmd, CMD_PING, CMD_STR_LEN)) {
-			ping(&addr);
+			//aggiorno il flag del superpeer che mi ha pingato
+			if (update_sp_flag(&spl_check_info, &addr) < 0) {
+				fprintf(stderr, "Ping error\n");
+			}
 		} else if (!strncmp(recv_pck.cmd, CMD_JOIN, CMD_STR_LEN)) {
-			if (join(sockfd, &addr, &recv_pck) < 0) {
+			//join sp
+			if (sp_join(sockfd, &addr, &recv_pck, &spl_check_info) < 0) {
 				fprintf(stderr, "join error\n");
 			}
 		} else if(!strncmp(recv_pck.cmd, CMD_LEAVE, CMD_STR_LEN)) {
 			//delete sp
-			if (sp_leave(sockfd, &addr, &recv_pck) < 0) {
+			if (sp_leave(sockfd, &addr, &recv_pck, &spl_check_info) < 0) {
 				fprintf(stderr, "leave error\n");
 			}
 		} else if (!strncmp(recv_pck.cmd,CMD_REGISTER, CMD_STR_LEN)) {
 			//insert sp
-			if (sp_register(sockfd, &addr, &recv_pck) < 0) {
+			if (sp_register(sockfd, &addr, &recv_pck, &spl_check_info) < 0) {
 				fprintf(stderr, "register error\n");
 			}			
 		}
