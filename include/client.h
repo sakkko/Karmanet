@@ -18,20 +18,17 @@
 #include "ioutil.h"
 #include "peerrate.h"
 #include "peer_list.h"
+#include "pinger.h"
 #include "request_list.h"
 #include "packet_util.h"
 #include "retx.h"
-
-
+#include "peer_list_checker.h"
+#include "sp_checker.h"
 
 #define BACKLOG		10
 #define MAXLINE		1024
 #define DIM_P 		4
 #define DIM_SP 		5
-//ricordiamoci di cambiarlo
-#define TIME_CHECK_FLAG 6
-#define TIME_TO_PING  2
-
 
 #define TCP_PORT 5193
 #define UDP_PORT 5193
@@ -66,8 +63,6 @@ short is_sp;
 
 long peer_rate;
 
-short start_index;
-
 struct sockaddr_in child_addr; //ultimo promote inviato
 
 struct sockaddr_in bs_addr; //indirizzo del boot
@@ -76,21 +71,12 @@ struct sockaddr_in my_sp_addr; //(indirizzo del sp a me associato)
 
 short my_sp_flag;		//flag associato al mio sp	
 
-pid_t pid_csp;			//processo check_sp
-
-long stack_csp[1024];  // stack check_sp
 
 void sig_chld_handler(int signo);
 
 Sigfunc *signal(int signo, Sigfunc *func);
 
-int super_peer(void *unused);
-
 struct sockaddr_in *str_to_addr(const char *str, int dim);
-
-short get_index();
-
-void init_index();
 
 void set_rate();
 
@@ -98,17 +84,25 @@ void add_fd(int fd, fd_set *fdset);
 
 int start_process(fd_set *fdset, struct sockaddr_in *sp_addr);
 
+int end_process(fd_set *allset, struct sp_checker_info *spchinfo, struct peer_list_ch_info *plchinfo, struct pinger_info *pinfo);
+
 int call_sp(const struct sockaddr_in *addr_to_call);
 
 int connect_to_sp(struct sockaddr_in *sp_addr, const struct sockaddr_in *addr_list, int addr_list_len);
 
 struct sockaddr_in *get_sp_list(int *len, int *error);
 
+int init(fd_set *fdset);
+
 int init_superpeer(fd_set *fdset, const struct sockaddr_in *sp_addr_list, int list_len);
 
 int join_overlay(fd_set *fdset, const struct sockaddr_in *sp_addr_list, int list_len);
 
 int set_listen_socket(fd_set *fdset);
+
+int join_peer(const struct sockaddr_in *addr, const struct packet *pck, struct peer_list_ch_info *plchinfo);
+
+void udp_handler(int udp_sock, fd_set *allset, struct sp_checker_info *spchinfo, struct peer_list_ch_info *plchinfo);
 
 #endif
 

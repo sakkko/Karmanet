@@ -124,8 +124,8 @@ short btos(const char *str) {
 	return *ret;
 }
 
-short get_rand() {
+unsigned short get_rand() {
 	srand(time(NULL));
-	return (short)rand();
+	return (unsigned short)rand();
 }
 

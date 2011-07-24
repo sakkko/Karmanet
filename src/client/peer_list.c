@@ -1,7 +1,7 @@
 #include "peer_list.h"
 
 /*
-* Funzione che inserisce un indirizzo nella lista.
+* Funzione che inserisce un indirizzo in testa alla lista.
 */
 void insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate) {
 	struct node *tmp_node;
@@ -17,6 +17,10 @@ void insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate) {
 	}
 }
 
+/*
+ * Funzione che inserisce un indirizzo nella lista, mantenendo la lista ordinata
+ * secondo il rate del peer.
+ */
 void sorted_insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate) {
 	struct node *tmp_node;
 	struct peer_node *tmp_peernode;
@@ -39,6 +43,9 @@ void sorted_insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_
  	peer_list_head = sorted_insert_node(peer_list_head, tmp_node, new_peer_node(peer_addr, peer_rate));
 }
 
+/*
+ * Funzione che crea un nuovo nodo.
+ */
 struct peer_node *new_peer_node(const struct sockaddr_in *peer_addr, unsigned long peer_rate) {
 	struct peer_node *new_node;
 
