@@ -11,8 +11,9 @@
 #include <unistd.h>
 #include <stdio.h>
 
-#define ADDR_STR_LEN 6
+#include "ioutil.h"
 
+#define ADDR_STR_LEN 6
 
 int tcp_socket(void);
 
@@ -36,5 +37,10 @@ void addrcpy(struct sockaddr_in *dest, const struct sockaddr_in *src);
 
 int addrcmp(const struct sockaddr_in *sad1, const struct sockaddr_in *sad2);
 
+struct sockaddr_in *str_to_addr(const char *str, int dim);
+
+int addr2str(char *str, unsigned long addr, unsigned short port);
+
+int str2addr(struct sockaddr_in *addr, const char *str);
 
 #endif

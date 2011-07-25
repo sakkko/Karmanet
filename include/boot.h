@@ -1,26 +1,21 @@
 #ifndef _BOOT_H
 #define _BOOT_H
 
-#include <stdio.h>
-
-#include "command.h"
-#include "ioutil.h"
-#include "inetutil.h"
 #include "packet_util.h"
-#include "sp_list.h"
-#include "sp_list_checker.h"
+#include "pinger.h"
+#include "retx.h"
+#include "sp_checker.h"
+#include "superpeer.h"
 
-#define TIME_CHECK_FLAG 6
-#define SERV_PORT 5193
+struct sockaddr_in *get_sp_list(int udp_sock, const struct sockaddr_in *bs_addr, int *len, int *error);
 
-int sp_join(int sockfd, const struct sockaddr_in *addr, const struct packet *pck, struct sp_list_checker_info *splchinfo);
+int connect_to_sp(int udp_sock, struct sockaddr_in *sp_addr, const struct sockaddr_in *addr_list, int addr_list_len, unsigned long peer_rate);
 
-int sp_leave(int sockfd, const struct sockaddr_in *addr, const struct packet *pck, struct sp_list_checker_info *splchinfo);
+int call_sp(int udp_sock, const struct sockaddr_in *addr_to_call, unsigned long peer_rate);
 
-int sp_register(int sockfd, const struct sockaddr_in *addr, const struct packet *pck, struct sp_list_checker_info *splchinfo);
+int start_process(int udp_sock, fd_set *fdset, struct sockaddr_in *sp_addr, const struct sockaddr_in *bs_addr, unsigned long peer_rate);
 
-int send_addr_list(int sockfd, const struct sockaddr_in *addr, const struct packet *pck);
-
-int set_str_addrlist(char *str);
+int end_process(fd_set *allset, int *fd, struct sp_checker_info *spchinfo, struct peer_list_ch_info *plchinfo, struct pinger_info *pinfo);
 
 #endif
+

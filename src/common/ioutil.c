@@ -1,5 +1,12 @@
 #include "ioutil.h"
 
+void add_fd(int fd, fd_set *fdset) {
+	FD_SET(fd, fdset);
+	if (fd > maxd) {
+		maxd = fd;
+	}	
+}
+
 ssize_t writen(int fd, const void *buf, size_t n)
 {
   size_t nleft;
@@ -40,60 +47,6 @@ int readline(int fd, void *vptr, int maxlen)
 
   *ptr = 0;	/* per indicare la fine dell'input */
   return(n);	/* restituisce il numero di byte letti */
-}
-
-int lock(const char *p)
-{
-	int fd, retcode;
-	while(1) {
-		fd = open(p, O_RDWR|O_CREAT|O_EXCL, 0644);
-		if((fd < 0) && (errno == EEXIST)) 
-			sched_yield();
-		else if (fd < 0) {
-				perror("nome lock non valido\n");
-				retcode = -1;
-				break;
-				}
-		else {
-			retcode = fd;
-			break;
-			}
-		}
-	return retcode;
-}
-
-int unlock(const char *p, int fd)
-{
-	int retcode = 0;
-	
-	retcode = close(fd);
-	if (retcode < 0) {
-		perror("file descriptor lock non valido\n");
-		return retcode;
-		}
-	else {
-		retcode = unlink(p);
-		if (retcode < 0) {
-			perror("bad unlink\n");
-			return -1;
-			}
-		}
-	return retcode;
-}
-
-int addr2str(char *str, unsigned long addr, unsigned short port) {
-	ltob(str, addr);
-	stob(str + sizeof(addr), port);
-	
-	return 0;
-}
-
-int str2addr(struct sockaddr_in *addr, const char *str) {
-	memset((void *)addr, 0, sizeof(struct sockaddr_in));
-	addr->sin_family = AF_INET;
-	addr->sin_addr.s_addr = btol(str);
-	addr->sin_port = btos(str + sizeof(long));
-	return 0;
 }
 
 void ltob(char *dest, long src) {
