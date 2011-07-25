@@ -1,9 +1,6 @@
 #ifndef _CLIENT_H
 #define _CLIENT_H
 
-#include <sys/types.h> 
-#include <sys/socket.h> 
-#include <arpa/inet.h>
 #include <unistd.h> 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,84 +22,37 @@
 #include "peer_list_checker.h"
 #include "sp_checker.h"
 
-#define BACKLOG		10
+#include "boot.h"
+#include "superpeer.h"
+
 #define MAXLINE		1024
 #define DIM_P 		4
 #define DIM_SP 		5
 
-#define TCP_PORT 5193
 #define UDP_PORT 5193
 #define BS_PORT 5193
 
-#define MAX_P_COUNT 4  //numero massimo di peer connessi a me stesso
 #define MAX_REDIRECT_COUNT 10 //numero massimo di redirect
 
-#define MAX_TCP_SOCKET 6
 
 typedef void Sigfunc(int);
 
-int maxd;
-
-int free_sock;
-
-int tcp_sock[MAX_TCP_SOCKET];
-
-int udp_sock;
-
-int tcp_listen;
-
-short have_child; // per ricordare se ho fatto un promote
-
-short curr_child_redirect; //per contare quanti redirect ho inviato su mio figlio
-
-short curr_p_count; //per contare quanti peer sono connessi a me sp
-
 int fd[2]; // usato per pipe	
-
-short is_sp;
 
 long peer_rate;
 
-struct sockaddr_in child_addr; //ultimo promote inviato
-
-struct sockaddr_in bs_addr; //indirizzo del boot
-
 struct sockaddr_in my_sp_addr; //(indirizzo del sp a me associato)
-
-short my_sp_flag;		//flag associato al mio sp	
-
 
 void sig_chld_handler(int signo);
 
 Sigfunc *signal(int signo, Sigfunc *func);
 
-struct sockaddr_in *str_to_addr(const char *str, int dim);
 
 void set_rate();
 
-void add_fd(int fd, fd_set *fdset);
+int init(int *udp_sock, fd_set *fdset);
 
-int start_process(fd_set *fdset, struct sockaddr_in *sp_addr);
-
-int end_process(fd_set *allset, struct sp_checker_info *spchinfo, struct peer_list_ch_info *plchinfo, struct pinger_info *pinfo);
-
-int call_sp(const struct sockaddr_in *addr_to_call);
-
-int connect_to_sp(struct sockaddr_in *sp_addr, const struct sockaddr_in *addr_list, int addr_list_len);
-
-struct sockaddr_in *get_sp_list(int *len, int *error);
-
-int init(fd_set *fdset);
-
-int init_superpeer(fd_set *fdset, const struct sockaddr_in *sp_addr_list, int list_len);
-
-int join_overlay(fd_set *fdset, const struct sockaddr_in *sp_addr_list, int list_len);
-
-int set_listen_socket(fd_set *fdset);
-
-int join_peer(const struct sockaddr_in *addr, const struct packet *pck, struct peer_list_ch_info *plchinfo);
-
-void udp_handler(int udp_sock, fd_set *allset, struct sp_checker_info *spchinfo, struct peer_list_ch_info *plchinfo);
+int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr, fd_set *allset, struct sp_checker_info *spchinfo, struct peer_list_ch_info *plchinfo);
 
 #endif
 

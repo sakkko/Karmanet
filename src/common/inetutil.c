@@ -58,4 +58,30 @@ int addrcmp(const struct sockaddr_in *sad1, const struct sockaddr_in *sad2) {
 	return ((sad1->sin_addr.s_addr == sad2->sin_addr.s_addr) && (sad1->sin_port == sad2->sin_port));
 }
 
+struct sockaddr_in *str_to_addr(const char *str, int dim) {
+	struct sockaddr_in *ret = (struct sockaddr_in *)malloc(dim * sizeof(struct sockaddr_in));
+	int offset = sizeof(long) + sizeof(short);
+	int i;
+	
+	for (i = 0; i < dim; i  ++) {
+		str2addr(&ret[i], str + (i * offset));
+	}
+	
+	return ret;
+}
+
+int addr2str(char *str, unsigned long addr, unsigned short port) {
+	ltob(str, addr);
+	stob(str + sizeof(addr), port);
+	
+	return 0;
+}
+
+int str2addr(struct sockaddr_in *addr, const char *str) {
+	memset((void *)addr, 0, sizeof(struct sockaddr_in));
+	addr->sin_family = AF_INET;
+	addr->sin_addr.s_addr = btol(str);
+	addr->sin_port = btos(str + sizeof(long));
+	return 0;
+}
 
