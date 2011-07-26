@@ -1,5 +1,5 @@
 #include "client.h"
-
+//funzione di prova mai utilizzata
 void print_addr_list(struct sockaddr_in *addr, int dim) {
 	int i = 0;
 	int off = sizeof(struct sockaddr_in);
