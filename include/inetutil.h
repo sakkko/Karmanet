@@ -10,6 +10,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <netdb.h>
 
 #include "ioutil.h"
 
@@ -42,5 +43,9 @@ struct sockaddr_in *str_to_addr(const char *str, int dim);
 int addr2str(char *str, unsigned long addr, unsigned short port);
 
 int str2addr(struct sockaddr_in *addr, const char *str);
+
+int get_local_addr(int socksd, struct sockaddr_in *addr);
+
+unsigned short get_local_port(int socksd);
 
 #endif

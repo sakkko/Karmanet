@@ -21,6 +21,7 @@
 #include "retx.h"
 #include "peer_list_checker.h"
 #include "sp_checker.h"
+#include "select_util.h"
 
 #include "boot.h"
 #include "superpeer.h"
@@ -32,27 +33,34 @@
 #define UDP_PORT 5193
 #define BS_PORT 5193
 
+#define MAX_P_COUNT 1  //numero massimo di peer connessi a me stesso
 #define MAX_REDIRECT_COUNT 10 //numero massimo di redirect
 
-
-typedef void Sigfunc(int);
+int udp_sock;
 
 int fd[2]; // usato per pipe	
 
 long peer_rate;
 
-struct sockaddr_in my_sp_addr; //(indirizzo del sp a me associato)
-
-void sig_chld_handler(int signo);
-
-Sigfunc *signal(int signo, Sigfunc *func);
-
+struct sp_checker_info *spchinfo;
+struct peer_list_ch_info *plchinfo;
+struct pinger_info pinfo;
 
 void set_rate();
 
-int init(int *udp_sock, fd_set *fdset);
+int init();
 
-int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr, fd_set *allset, struct sp_checker_info *spchinfo, struct peer_list_ch_info *plchinfo);
+int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr);
+
+int join_handler(int udp_sock, const struct sockaddr_in *addr, const struct packet *pck);
+
+int promote_handler(int udp_sock, const struct sockaddr_in *bs_addr);
+
+int end_process();
+
+int run_threads();
+
+int stop_threads();
 
 #endif
 

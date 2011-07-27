@@ -10,6 +10,7 @@ int sp_register(int sockfd, const struct sockaddr_in *addr, const struct packet 
 	struct packet send_pack;
 	int rc;
 
+	printf("SP REGISTER\n");
 	if ((rc = pthread_mutex_lock(&splchinfo->thinfo.mutex)) != 0) {
 		fprintf(stderr, "sp_register error - can't acquire lock: %s\n", strerror(rc));
 		return -1;
@@ -213,7 +214,7 @@ int main(int argc, char **argv) {
 			if (sp_leave(sockfd, &addr, &recv_pck, &spl_check_info) < 0) {
 				fprintf(stderr, "leave error\n");
 			}
-		} else if (!strncmp(recv_pck.cmd,CMD_REGISTER, CMD_STR_LEN)) {
+		} else if (!strncmp(recv_pck.cmd, CMD_REGISTER, CMD_STR_LEN)) {
 			//insert sp
 			if (sp_register(sockfd, &addr, &recv_pck, &spl_check_info) < 0) {
 				fprintf(stderr, "register error\n");

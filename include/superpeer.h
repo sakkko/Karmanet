@@ -6,12 +6,12 @@
 #include "peer_list_checker.h"
 #include "request_list.h"
 #include "retx.h"
+#include "select_util.h"
 
 #define BACKLOG 10
 #define TCP_PORT 5193
 #define MAX_TCP_SOCKET 6
 
-#define MAX_P_COUNT 4  //numero massimo di peer connessi a me stesso
 
 int tcp_listen;
 
@@ -32,13 +32,15 @@ struct sockaddr_in child_addr; //ultimo promote inviato
 
 int sp_init();
 
-int join_overlay(fd_set *fdset, const struct sockaddr_in *sp_addr_list, int list_len);
+int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len);
 
-int init_superpeer(fd_set *fdset, const struct sockaddr_in *sp_addr_list, int list_len);
+int init_superpeer(int socksd, const struct sockaddr_in *sp_addr_list, int list_len);
  
-int set_listen_socket(fd_set *fdset);
+int set_listen_socket(unsigned short port);
 
-int join_peer(int udp_sock, const struct sockaddr_in *addr, const struct packet *pck, struct peer_list_ch_info *plchinfo);
+int join_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate, struct peer_list_ch_info *plchinfo);
+
+int promote_peer(int udp_sock, struct peer_list_ch_info *plchinfo);
 
 #endif
 

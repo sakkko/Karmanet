@@ -1,5 +1,6 @@
 #include "boot.h"
 
+
 /*
  * Funzione che richiede al server di bootstrap la lista di indirizzi dei superpeer 
  * presenti nella rete e setta la veriabile error in caso di errori.
@@ -105,7 +106,7 @@ int call_sp(int udp_sock, const struct sockaddr_in *addr_to_call, unsigned long 
  * Quando la funzione torna senza errore il client ha effettuato il join
  * ed è entrato completamente nella rete P2P.
  */
-int start_process(int udp_sock, fd_set *fdset, struct sockaddr_in *sp_addr, const struct sockaddr_in *bs_addr, unsigned long peer_rate) {
+int start_process(int udp_sock, struct sockaddr_in *sp_addr, const struct sockaddr_in *bs_addr, unsigned long peer_rate) {
 	struct sockaddr_in *addr_list;
 	int addr_list_len, rc, error;
 
@@ -119,7 +120,7 @@ int start_process(int udp_sock, fd_set *fdset, struct sockaddr_in *sp_addr, cons
 
 	if (addr_list == NULL) {
 		//sono superpeer
-		if (init_superpeer(fdset, addr_list, addr_list_len) < 0) {
+		if (init_superpeer(udp_sock, addr_list, addr_list_len) < 0) {
 			fprintf(stderr, "start_process error - init_superpeer failed\n");
 			return -1;
 		}
@@ -132,7 +133,7 @@ int start_process(int udp_sock, fd_set *fdset, struct sockaddr_in *sp_addr, cons
 
 		if (rc == 1) {
 			//sono superpeer - ho ricevuto promote dal superpeer
-			if (init_superpeer(fdset, addr_list, addr_list_len) < 0) {
+			if (init_superpeer(udp_sock, addr_list, addr_list_len) < 0) {
 				fprintf(stderr, "start_process error - init_superpeer failed\n");
 				return -1;
 			}
@@ -147,37 +148,4 @@ int start_process(int udp_sock, fd_set *fdset, struct sockaddr_in *sp_addr, cons
 	return 0;
 }
 
-/*
- * Funzione di terminazione del processo. Chiude la pipe e ferma i thread
- * di controllo e di ping.
- */
-int end_process(fd_set *allset, int *fd, struct sp_checker_info *spchinfo, struct peer_list_ch_info *plchinfo, struct pinger_info *pinfo) {
-	close(fd[0]);
-	close(fd[1]);
-	FD_CLR(fd[0], allset);
-
-	//interrompo il thread che fa i ping
-	if (pinger_stop(pinfo) < 0) {
-		fprintf(stderr, "end_process error - can't stop pinger\n");
-		return -1;
-	}
-
-	if (is_sp) {
-		//interrompo il thread che controlla la lista dei peer
-		if (peer_list_checker_stop(plchinfo) < 0) {
-			fprintf(stderr, "end_process error - can't stop peer list checker\n");
-			return -1;
-		}
-		free(plchinfo);
-	} else {
-		//interrompo il thread che controlla il superpeer
-		if (sp_checker_stop(spchinfo) < 0) {
-			fprintf(stderr, "end_process error - can't stop superpeer checker\n");
-			return -1;
-		}
-		free(spchinfo);
-	}
-	
-	return 0;
-}
 

@@ -85,3 +85,16 @@ int str2addr(struct sockaddr_in *addr, const char *str) {
 	return 0;
 }
 
+int get_local_addr(int socksd, struct sockaddr_in *addr) {
+	unsigned int len = sizeof(struct sockaddr_in);
+	return getsockname(socksd, (struct sockaddr *)addr, &len);
+}
+
+unsigned short get_local_port(int socksd) {
+	struct sockaddr_in addr;
+	if (get_local_addr(socksd, &addr) < 0) {
+		return -1;
+	}
+	return addr.sin_port;
+}
+
