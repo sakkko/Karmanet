@@ -1,6 +1,7 @@
 #ifndef _BOOT_H
 #define _BOOT_H
 
+#include "inetutil.h"
 #include "packet_util.h"
 #include "pinger.h"
 #include "retx.h"
@@ -13,9 +14,7 @@ int connect_to_sp(int udp_sock, struct sockaddr_in *sp_addr, const struct sockad
 
 int call_sp(int udp_sock, const struct sockaddr_in *addr_to_call, unsigned long peer_rate);
 
-int start_process(int udp_sock, fd_set *fdset, struct sockaddr_in *sp_addr, const struct sockaddr_in *bs_addr, unsigned long peer_rate);
-
-int end_process(fd_set *allset, int *fd, struct sp_checker_info *spchinfo, struct peer_list_ch_info *plchinfo, struct pinger_info *pinfo);
+int start_process(int udp_sock, struct sockaddr_in *sp_addr, const struct sockaddr_in *bs_addr, unsigned long peer_rate);
 
 #endif
 
