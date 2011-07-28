@@ -15,7 +15,7 @@
 struct pinger_info {
 	struct th_info thinfo;
 	int socksd;
-	struct sockaddr_in *addr_to_ping;
+	struct sockaddr_in addr_to_ping;
 };
 
 int pinger_run(struct pinger_info *pinfo);

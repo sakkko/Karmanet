@@ -36,10 +36,13 @@ void remove_sp(const struct sockaddr_in *sp_addr) {
 	if ((tmp_node = get_node_sp(sp_addr)) != NULL) {
 		if (it_addr == tmp_node) {
 			if (tmp_node->next != NULL) {
+				printf("IT = NEXT\n");
 				it_addr = tmp_node->next;
 			} else if (tmp_node->prev != NULL) {
+				printf("IT = PREV\n");
 				it_addr = tmp_node->prev;
 			} else {
+				printf("IT = NULL\n");
 				it_addr = NULL;
 			}
 		}

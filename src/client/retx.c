@@ -21,6 +21,7 @@ void retx_func(void *args) {
 		printf("Thread %d: Semaforo ottenuto, libero il semaforo per il pacchetto\n", indx);
 		sem_post(&pck_sem);	
 		tmp = rtxinfo->pck.index;
+		errors = 0;
 		while (1) {
 			printf("Thread %d: data: %s, index: %d timeout: %d sec\n", indx, thinfo.th_retx_info[indx].pck.cmd, tmp, to);
 			pthread_mutex_lock(&retx_mutex);
@@ -128,6 +129,7 @@ int mutex_send(int socksd, const struct sockaddr_in *addr, const struct packet *
 	pthread_mutex_lock(&retx_mutex);
 	if (send_packet(socksd, addr, pck) < 0) {
 		pthread_mutex_unlock(&retx_mutex);
+		perror("mutex_send error");
 		return -1;
 	}
 	pthread_mutex_unlock(&retx_mutex);

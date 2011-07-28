@@ -52,7 +52,7 @@ void pinger_func(void *args) {
 		}
 
 		new_ping_packet(&ping_packet, get_index());
-		if (mutex_send(pinfo->socksd, pinfo->addr_to_ping, &ping_packet) < 0) {
+		if (mutex_send(pinfo->socksd, &pinfo->addr_to_ping, &ping_packet) < 0) {
 			fprintf(stderr, "pinger_func error - can't send ping\n");
 		}
 	}

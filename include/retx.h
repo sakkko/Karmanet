@@ -11,7 +11,7 @@
 #include "packet_util.h"
 
 #define NTHREADS 3
-#define DEFAULT_TO 3
+#define DEFAULT_TO 5
 #define MAX_TO 15
 
 

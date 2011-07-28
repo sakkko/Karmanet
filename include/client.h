@@ -30,6 +30,14 @@
 #define DIM_P 		4
 #define DIM_SP 		5
 
+#define ST_JOINBS_SENT 1
+#define ST_JOINSP_SENT 2
+#define ST_PROMOTE_SENT 3
+#define ST_PROMOTE_RECV 4
+#define ST_REGISTER_SENT 5
+#define ST_ACTIVE 6
+#define ST_LEAVE_SENT 7
+
 #define UDP_PORT 5193
 #define BS_PORT 5193
 
@@ -42,9 +50,16 @@ int fd[2]; // usato per pipe
 
 long peer_rate;
 
+int state;
+
 struct sp_checker_info *spchinfo;
 struct peer_list_ch_info *plchinfo;
 struct pinger_info pinfo;
+
+struct sockaddr_in *addr_list;
+int curr_addr_index;
+
+struct sockaddr_in *sp_addr;
 
 void set_rate();
 

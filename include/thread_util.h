@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <sys/time.h>
+#include <sys/signal.h>
 #include <time.h>
 
 struct th_info {

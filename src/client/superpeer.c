@@ -65,7 +65,6 @@ int init_superpeer(int socksd, const struct sockaddr_in *sp_addr_list, int list_
 		}
 	}
 
-	is_sp = 1;
 
 	printf("ESCO DA INIT_SUPERPEER\n");
 	return 0;

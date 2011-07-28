@@ -2,6 +2,7 @@
 
 int rc;
 
+
 /*
  * Funzione che lancia un thread, che eseguirà la funzione start_routine con parametri args.
  * Ritorna 0 in caso di successo e -1 in caso di errore.
@@ -41,25 +42,31 @@ int thread_run(struct th_info *thinfo, void *(*start_routine)(void *), void *arg
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
 int thread_stop(struct th_info *thinfo) {
-	int ret_value;
+//	int ret_value;
 
 	if ((rc = pthread_mutex_lock(&thinfo->mutex)) != 0) {
-		fprintf(stderr, "pinger_stop error - can't acquire lock: %s\n", strerror(rc));
+		fprintf(stderr, "thread_stop error - can't acquire lock: %s\n", strerror(rc));
 		return -1;
 	}
 	thinfo->go = 0;
 
 	if ((rc = pthread_mutex_unlock(&thinfo->mutex)) != 0) {
-		fprintf(stderr, "pinger_stop error - can't release lock: %s\n", strerror(rc));
+		fprintf(stderr, "thread_stop error - can't release lock: %s\n", strerror(rc));
 		return -1;
 	}
 
+	if ((rc = pthread_kill(thinfo->thread, SIGALRM)) != 0) {
+		fprintf(stderr, "thread_stop error - can't send signal to thread\n");
+		return -1;
+	}
+
+/*
 	if ((rc = pthread_join(thinfo->thread, (void *)&ret_value)) != 0) {
 		fprintf(stderr, "pinger_stop error - can't join thread: %s\n", strerror(rc));
 		return -1;
 	}
-
-	return ret_value;
+*/
+	return 0;
 
 }
 

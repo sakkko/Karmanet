@@ -84,6 +84,7 @@ int call_sp(int udp_sock, const struct sockaddr_in *addr_to_call, unsigned long 
 		if (retx_recv(udp_sock, &recv_pck) < 0) {
 			fprintf(stderr, "get_sp_addr error: retx_recv failed\n");
 		 } else {
+			 printf("PACKET: CMD=%s INDEX=%u\n", recv_pck.cmd, recv_pck.index);
 			 if (!strncmp(recv_pck.cmd, CMD_ACK, CMD_STR_LEN)) {
 				 return 0;
 			 } else if (!strncmp(recv_pck.cmd, CMD_REDIRECT, CMD_STR_LEN)) {

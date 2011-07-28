@@ -57,7 +57,7 @@ void sp_list_checker_func(void *args) {
 			it = it->next;
 			if (spaddr_tmp->flag == 0) {
 				printf("cancello nodo: %s:%d\n", inet_ntoa(spaddr_tmp->sp_addr.sin_addr), ntohs(spaddr_tmp->sp_addr.sin_port));
-				remove_sp_node(tmp_node);
+				remove_sp(&spaddr_tmp->sp_addr);
 			} else {
 				dim ++;
 				spaddr_tmp->flag = 0;
