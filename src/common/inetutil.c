@@ -73,7 +73,6 @@ struct sockaddr_in *str_to_addr(const char *str, int dim) {
 int addr2str(char *str, unsigned long addr, unsigned short port) {
 	ltob(str, addr);
 	stob(str + sizeof(addr), port);
-	
 	return 0;
 }
 

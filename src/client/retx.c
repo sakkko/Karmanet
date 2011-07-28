@@ -13,12 +13,10 @@ void retx_func(void *args) {
 	
 	while (1) {
 		to = DEFAULT_TO;
-		printf("Thread %d: Attendo al semaforo\n", indx);
 		sem_wait(&rtx_sem);
 		rtxinfo->socksd = packet_to_send.socksd;
 		addrcpy(&rtxinfo->addrto, &packet_to_send.addrto);
 		pckcpy(&rtxinfo->pck, &packet_to_send.pck);
-		printf("Thread %d: Semaforo ottenuto, libero il semaforo per il pacchetto\n", indx);
 		sem_post(&pck_sem);	
 		tmp = rtxinfo->pck.index;
 		errors = 0;
@@ -51,7 +49,6 @@ void retx_func(void *args) {
 				pthread_mutex_lock(&retx_mutex); 
 				thinfo.th_retx_info[indx].pck.index = -1;
 				pthread_mutex_unlock(&retx_mutex); 			
-				printf("Thread %d: Ricevuto ACK %d - stop ritrasmissione\n", indx, tmp);				
 				break;
 			}
 		}
@@ -60,7 +57,7 @@ void retx_func(void *args) {
 }
 
 int retx_send(int socksd, const struct sockaddr_in *addr, const struct packet *pck) {
-	printf("============ENTRO IN RETX_SEND=========\n");
+//	printf("============ENTRO IN RETX_SEND=========\n");
 	
 	sem_wait(&pck_sem);
 	packet_to_send.socksd = socksd;
@@ -68,13 +65,13 @@ int retx_send(int socksd, const struct sockaddr_in *addr, const struct packet *p
 	pckcpy(&packet_to_send.pck, pck);
 	sem_post(&rtx_sem);
 	
-	printf("============ESCO DA RETX_SEND=========\n");
+//	printf("============ESCO DA RETX_SEND=========\n");
 	return 0;
 	
 }
 
 int retx_stop(int pck_index) {
-	printf("\n============ENTRO IN RETX_STOP: pck_index:%d =========\n", pck_index);
+//	printf("\n============ENTRO IN RETX_STOP: pck_index:%d =========\n", pck_index);
 	int i;
 	
 	pthread_mutex_lock(&retx_mutex);
@@ -91,8 +88,7 @@ int retx_stop(int pck_index) {
 	}
 	
 	sem_post(&thinfo.th_retx_info[i].sem);
-	printf("THREAD PRONTO\n");
-	printf("============ESCO DA RETX_STOP=========\n");
+//	printf("============ESCO DA RETX_STOP=========\n");
 	return 0;
 }
 

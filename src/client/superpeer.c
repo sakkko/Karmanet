@@ -15,6 +15,7 @@ int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
 				return -1;
 			}
 		}
+		printf("join_overlay - addr: %s:%d\n", inet_ntoa(sp_addr_list[i].sin_addr), ntohs(sp_addr_list[i].sin_port));
 		if (tcp_connect(tcp_sock[free_sock], &sp_addr_list[i]) < 0){
 			perror("join_overlay error - can't connect to superpeer");
 			ok = 0;
@@ -35,7 +36,6 @@ int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
 		return -1;
 	}
 
-	printf("ESCO DA JOIN_OVERLAY\n");
 	return 0;
 	
 }
@@ -44,8 +44,6 @@ int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
  * Funzione di inizializzazione del superpeer.
  */
 int init_superpeer(int socksd, const struct sockaddr_in *sp_addr_list, int list_len) {
-
-	printf("INIT SUPER PEER\n");
 	is_sp = 0;
 	free_sock = 0;
 	curr_p_count = 0;
@@ -66,7 +64,6 @@ int init_superpeer(int socksd, const struct sockaddr_in *sp_addr_list, int list_
 	}
 
 
-	printf("ESCO DA INIT_SUPERPEER\n");
 	return 0;
 	
 }

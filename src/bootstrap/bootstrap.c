@@ -88,7 +88,7 @@ int set_str_addrlist(char *str) {
 
 	for (i = 0; i < ret; i ++) {
 		saddr = get_addr();
-		addr2str(str, saddr->sin_addr.s_addr, saddr->sin_port);
+		addr2str(ptr, saddr->sin_addr.s_addr, saddr->sin_port);
 		ptr += ADDR_STR_LEN;
 	}
 
@@ -194,10 +194,10 @@ int main(int argc, char **argv) {
 		strncpy(strcmd, recv_pck.cmd, CMD_STR_LEN);
 		strcmd[CMD_STR_LEN] = 0;
 		inet_ntop(AF_INET, &addr.sin_addr, str, 15);
-		printf("ricevuto pachetto\n");
-		printf("from %s:%d\n", str,ntohs(addr.sin_port));
-		printf("data:%s\n", recv_pck.data);
-		printf("cmd:%s\n", strcmd);
+	//	printf("ricevuto pachetto\n");
+	//	printf("from %s:%d\n", str,ntohs(addr.sin_port));
+	//	printf("data:%s\n", recv_pck.data);
+	//	printf("cmd:%s\n", strcmd);
 
 		if (!strncmp(recv_pck.cmd, CMD_PING, CMD_STR_LEN)) {
 			//aggiorno il flag del superpeer che mi ha pingato

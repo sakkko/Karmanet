@@ -136,7 +136,7 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 			if (state == ST_PROMOTE_RECV) {
 				return 0;
 			}
-			if (is_sp) {
+			if (is_sp || state == ST_REGISTER_SENT) {
 				new_ack_packet(&send_pck, recv_pck.index);
 				if (mutex_send(udp_sock, &addr, &send_pck) < 0) {
 					perror ("errore in udp_send");
@@ -171,6 +171,7 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 			free(addr_list);
 			addr_list = NULL;
 			new_register_packet(&send_pck, get_index());
+			printf("INVIO REGISTER\n");
 			if (retx_send(udp_sock, bs_addr, &send_pck) < 0) {
 				fprintf(stderr, "udp_handler error - retx_send failed\n");
 				return -1;
@@ -196,78 +197,9 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 
 	}
 
-/*	
-	if (is_sp == 1) {
-		//sono sp
-		 if (!strncmp(tmp_pck.cmd, CMD_JOIN, CMD_STR_LEN)) {
-			if (join_handler(udp_sock, &addr, &tmp_pck) < 0) {
-				fprintf(stderr, "udp_handler error - join error\n");
-				return -1;
-			}
-		} else if (!strncmp(tmp_pck.cmd, CMD_PING, CMD_STR_LEN)) { 
-			//printf("ricevuto ping\n");
-			//updateflag di addr
-			printf("Ricevuto ping da %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
-			update_peer_flag(plchinfo, &addr);
-	 		new_pong_packet(&tmp_pck, tmp_pck.index);
-		 	if (mutex_send(udp_sock, &addr, &tmp_pck) < 0) {
-		 		perror ("errore in udp_send");
-		 	}
-		} else if (!strncmp(tmp_pck.cmd, CMD_LEAVE, CMD_STR_LEN)) { 
-			//rimuovi addr
-		} else if (!strncmp(tmp_pck.cmd, CMD_WHOHAS, CMD_STR_LEN)) { 
-			;
-		}
-	} else {
-		//sono solo peer
-		
-	}
-*/
 	return 0;
 }
 
-int promote_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
-	struct sockaddr_in *addr_list;
-	struct packet tmp_pck;
-	int list_len, error = 0;
-
-	if (is_sp) {
-		return 0;
-	}
-	
-	printf("richiedo lista sp\n");
-	addr_list = get_sp_list(udp_sock, bs_addr, &list_len, &error);
-	if (error) {
-		fprintf(stderr, "promote_handler error - can't get superpeer address list from bootstrap\n");
-		return -1;
-	}
-
-	end_process();
-	printf("provo init sp\n");
-	if (init_superpeer(udp_sock, addr_list, list_len) < 0) {
-		fprintf(stderr, "promote_handler error - can't initialize superpeer\n");
-		free(addr_list);
-		return -1;
-	}
-	free(addr_list);
-
-	run_threads(bs_addr, NULL);
-	printf("invio register\n");
-	new_register_packet(&tmp_pck, get_index());
-	if (retx_send(udp_sock, bs_addr, &tmp_pck) < 0) {
-		perror("errore in udp_send");
-		return -1;
-	}
-
-	addrcpy(&pinfo.addr_to_ping, bs_addr);
-
-	if (pinger_run(&pinfo) < 0) {
-		fprintf(stderr, "promote_handler error - can't start pinger\n");
-		return -1;
-
-	}
-	return 0;
-}
 
 int join_handler(int udp_sock, const struct sockaddr_in *addr, const struct packet *pck) {
 	struct packet tmp_packet;
@@ -310,7 +242,7 @@ int join_handler(int udp_sock, const struct sockaddr_in *addr, const struct pack
 		return -1;
 	}
 
-	insert_request(addr, pck->index);
+//	insert_request(addr, pck->index);
 
 	return 0;
 }
@@ -417,7 +349,7 @@ int stop_threads() {
 }
 
 void sighand(int signo) {
-	printf("CIAO AHAHAHAHAH\n");
+	printf("sighand - sblocco thread\n");
 	return;
 }
 
@@ -457,20 +389,6 @@ int main (int argc,char *argv[]){
 		return 1;
 	}
 
-/*
-	//provo a entrare nella rete
-	if (start_process(udp_sock, &sp_addr, &bs_addr, peer_rate) < 0) {
-		fprintf(stderr, "Initialization error - abort\n");
-		return 1;
-	}
-*/
-/*
-	if (run_threads(&bs_addr, &sp_addr) < 0) {
-		fprintf(stderr, "Initialization error - can't run threads\n");
-		return 1;
-	}
-*/
-
 	new_join_packet(&tmp_pck, get_index());
 	if (retx_send(udp_sock, &bs_addr, &tmp_pck) < 0) {
 		fprintf(stderr, "Can't send join to bootstrap\n");
@@ -501,7 +419,6 @@ int main (int argc,char *argv[]){
 				free_sock ++;
 			}
 		} else if (fd_ready(fd[0])) {
-			printf("RESEEEETTTTT aadddas\n");
 			char str[4];
 			read(fd[0], str, 3);
 			printf("pipe: %s\n", str);

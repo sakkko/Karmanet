@@ -67,13 +67,13 @@ void stob(char *dest, short src) {
 	}
 }
 
-long btol(const char *str) {
-	long *ret = (long *)str;
+unsigned long btol(const char *str) {
+	unsigned long *ret = (unsigned long *)str;
 	return *ret;
 }
 
-short btos(const char *str) {
-	short *ret = (short *)str;
+unsigned short btos(const char *str) {
+	unsigned short *ret = (unsigned short *)str;
 	return *ret;
 }
 

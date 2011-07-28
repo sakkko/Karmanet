@@ -22,9 +22,9 @@ void ltob(char *dest, long src);
 
 void stob(char *dest, short src);
 
-long btol(const char *str);
+unsigned long btol(const char *str);
 
-short btos(const char *str);
+unsigned short btos(const char *str);
 
 unsigned short get_rand();
 
