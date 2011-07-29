@@ -33,18 +33,23 @@ void sighand(int signo) {
 /*
 * Funzione di inizializzazione generale.
 */
-int init() {
+int init(int udp_sock) {
 	struct sigaction actions;
 
-	if ((udp_sock = udp_socket()) < 0) {
-		perror("errore in socket");
+	if (pipe(thread_pipe) < 0) {
+		perror("init error - can't initialize pipe");
 		return -1;
 	}
-	
+
+	set_rate();
+	init_index();
+	retx_init(thread_pipe[1], &pipe_mutex);
+
 	state = 0;
 	fd_init();	
 	fd_add(fileno(stdin));
 	fd_add(udp_sock);
+	fd_add(thread_pipe[0]);
 
 	sigemptyset(&actions.sa_mask);
 	actions.sa_flags = 0;
@@ -55,9 +60,6 @@ int init() {
 		return 1;
 	}
 
-	set_rate();
-	init_index();
-	retx_init();
 	
 	return 0;
 }
@@ -96,10 +98,10 @@ void pong_handler() {
  * Funzione che gestisce il comando ack.
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
-int ack_handler(const struct sockaddr_in *addr, const struct sockaddr_in *bs_addr, const struct packet *recv_pck) {
+int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct sockaddr_in *bs_addr, const struct packet *recv_pck) {
 	if (state == ST_JOINSP_SENT) {
 		retx_stop(recv_pck->index);
-		run_threads(NULL, addr);	
+		run_threads(udp_sock, NULL, addr);	
 		printf("Sono peer, il mio superpeer è %s:%d\n", inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
 		state = ST_ACTIVE;
 		free(addr_list);
@@ -113,7 +115,7 @@ int ack_handler(const struct sockaddr_in *addr, const struct sockaddr_in *bs_add
 		retx_stop(recv_pck->index);	
 		stop_threads(0);
 		is_sp = 1;
-		run_threads(bs_addr, NULL);
+		run_threads(udp_sock, bs_addr, NULL);
 	}
 
 	return 0;
@@ -141,7 +143,7 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 			
 	if (!strncmp(recv_pck.cmd, CMD_ACK, CMD_STR_LEN)) {
 		//ricevuto ack
-		if (ack_handler(&addr, bs_addr, &recv_pck) < 0) {
+		if (ack_handler(udp_sock, &addr, bs_addr, &recv_pck) < 0) {
 			fprintf(stderr, "udp_handler error - ack_handler failed\n");
 			return -1;
 		}
@@ -259,7 +261,7 @@ int promote_handler(int udp_sock, const struct sockaddr_in *recv_addr, const str
 		addr_list = NULL;
 		init_superpeer(udp_sock, NULL, 0);
 		is_sp = 1;
-		run_threads(bs_addr, NULL);
+		run_threads(udp_sock, bs_addr, NULL);
 	} else {
 		if (state == ST_PROMOTE_RECV) {
 			return 0;
@@ -339,9 +341,9 @@ int join_handler(int udp_sock, const struct sockaddr_in *addr, const struct pack
  * di controllo e di ping.
  */
 int end_process(int reset) {
-	close(fd[0]);
-	close(fd[1]);
-	fd_remove(fd[0]);
+	close(thread_pipe[0]);
+	close(thread_pipe[1]);
+	fd_remove(thread_pipe[0]);
 
 	return stop_threads(reset);
 
@@ -351,7 +353,7 @@ int end_process(int reset) {
  * Funzione che lancia i thread per il controllo delle liste e l'invio dei ping.
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
-int run_threads(const struct sockaddr_in *bs_addr, const struct sockaddr_in *sp_addr) {
+int run_threads(int udp_sock, const struct sockaddr_in *bs_addr, const struct sockaddr_in *sp_addr) {
 	pinfo.socksd = udp_sock;
 
 	if (is_sp) {
@@ -371,15 +373,14 @@ int run_threads(const struct sockaddr_in *bs_addr, const struct sockaddr_in *sp_
 		spchinfo = (struct sp_checker_info *)malloc(sizeof(struct sp_checker_info));
 		//imposto il flag di presenza del superpeer
 		spchinfo->sp_flag = 1;
-		pipe(fd);
 		//imposto la pipe
-		spchinfo->sp_checker_pipe = fd[1];
+		spchinfo->sp_checker_pipe = thread_pipe[1];
+		spchinfo->pipe_mutex = &pipe_mutex;
 		//faccio partire il thread che controlla il flag di presenza del superpeer
 		if (sp_checker_run(spchinfo) < 0) {
 			fprintf(stderr, "Can't start superpeer checker\n");
 			return -1;
 		}
-		fd_add(fd[0]);			
 		//imposto l'indirizzo a cui fare il ping
 		addrcpy(&pinfo.addr_to_ping, sp_addr);
 	}
@@ -396,6 +397,11 @@ int run_threads(const struct sockaddr_in *bs_addr, const struct sockaddr_in *sp_
 
 /*
  * Funzione che interrompe i thread per il controllo delle liste e l'invio dei ping.
+ * La variabile reset indica se il processo di terminazione dei thread è partito a causa
+ * di un RST ricevuto sulla pipe, in questo caso il thread che controlla la presenza del
+ * superpeer è già terminato e non c'è bisogno di inviargli il segnale; o se è partito
+ * a causa di un promote ricevuto dal superpeer, in questo caso il thread che controlla
+ * la presenza del superpeer è ancora attivo e bisogna fermarlo.
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
 int stop_threads(int reset) {
@@ -447,8 +453,11 @@ int stop_threads(int reset) {
 
 
 int main (int argc,char *argv[]){
+	int udp_sock, ready;
 	int i; //lunghezza indirizzi ricevuti
-	int ready;
+
+	char str[MAXLINE];
+	int nread;
 
 	struct sockaddr_in bs_addr;
 	struct packet tmp_pck;
@@ -459,12 +468,17 @@ int main (int argc,char *argv[]){
 		return 1;
 	}
 	
+	if ((udp_sock = udp_socket()) < 0) {
+		perror("init error - can't initialize socket");
+		return -1;
+	}
+
 	if (set_addr_in(&bs_addr, argv[1], BS_PORT) < 0) {
-		fprintf(stderr, "errore in inet_pton per %s", argv[1]);
+		fprintf(stderr, "Invalid address %s", argv[1]);
 		return 1;
 	}	
 
-	if (init() < 0) {
+	if (init(udp_sock) < 0) {
 		fprintf(stderr, "Errore durante l'inizializzazione\n");
 		return 1;
 	}
@@ -499,12 +513,15 @@ int main (int argc,char *argv[]){
 				fd_add(tcp_sock[free_sock]);
 				free_sock ++;
 			}
-		} else if (fd_ready(fd[0])) {
-			char str[4];
-			read(fd[0], str, 3);
+		} else if (fd_ready(thread_pipe[0])) {
+			if ((nread = readline(thread_pipe[0], str, MAXLINE)) < 0) {
+				fprintf(stderr, "Can't read from pipe\n");
+				return 1;
+			}
+			str[nread - 1] = 0;
 			printf("pipe: %s\n", str);
 			if (!strncmp(str, "RST", 3)) {
-				end_process(1);
+				stop_threads(1);
 
 				new_join_packet(&tmp_pck, get_index());
 				if (retx_send(udp_sock, &bs_addr, &tmp_pck) < 0) {
@@ -513,6 +530,9 @@ int main (int argc,char *argv[]){
 				}
 
 				state = ST_JOINBS_SENT;
+			} else if (!strncmp(str, "ERR", 3)) {
+				//si è verificato un errore
+				//TODO gestione dell'errore
 			}
 
 		} else {

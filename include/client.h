@@ -40,12 +40,12 @@
 #define UDP_PORT 5193
 #define BS_PORT 5193
 
-#define MAX_P_COUNT 1  //numero massimo di peer connessi a me stesso
+#define MAX_P_COUNT 2  //numero massimo di peer connessi a me stesso
 #define MAX_REDIRECT_COUNT 10 //numero massimo di redirect
 
-int udp_sock;
+pthread_mutex_t pipe_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-int fd[2]; // usato per pipe	
+int thread_pipe[2]; // usato per pipe	
 
 long peer_rate;
 
@@ -58,7 +58,6 @@ struct pinger_info pinfo;
 struct sockaddr_in *addr_list;
 int curr_addr_index;
 
-struct sockaddr_in *sp_addr;
 
 void set_rate();
 
@@ -76,13 +75,13 @@ int redirect_handler(int udp_sock, const struct packet *recv_pck);
 
 int ping_handler(int udp_sock, const struct sockaddr_in *addr);
 
-int ack_handler(const struct sockaddr_in *addr, const struct sockaddr_in *bs_addr, const struct packet *recv_pck);
+int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct sockaddr_in *bs_addr, const struct packet *recv_pck);
 
 void pong_handler();
 
 int end_process(int reset);
 
-int run_threads(const struct sockaddr_in *bs_addr, const struct sockaddr_in *sp_addr);
+int run_threads(int udp_sock, const struct sockaddr_in *bs_addr, const struct sockaddr_in *sp_addr);
 
 int stop_threads(int reset);
 

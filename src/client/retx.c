@@ -14,16 +14,16 @@ void retx_func(void *args) {
 	while (1) {
 		to = DEFAULT_TO;
 		sem_wait(&rtx_sem);
-		rtxinfo->socksd = packet_to_send.socksd;
-		addrcpy(&rtxinfo->addrto, &packet_to_send.addrto);
-		pckcpy(&rtxinfo->pck, &packet_to_send.pck);
+		rtxinfo->snd_info.socksd = packet_to_send.socksd;
+		addrcpy(&rtxinfo->snd_info.addrto, &packet_to_send.addrto);
+		pckcpy(&rtxinfo->snd_info.pck, &packet_to_send.pck);
 		sem_post(&pck_sem);	
-		tmp = rtxinfo->pck.index;
+		tmp = rtxinfo->snd_info.pck.index;
 		errors = 0;
 		while (1) {
-			printf("Thread %d: data: %s, index: %d timeout: %d sec\n", indx, thinfo.th_retx_info[indx].pck.cmd, tmp, to);
+			printf("Thread %d: data: %s, index: %d timeout: %d sec\n", indx, rtxinfo->snd_info.pck.cmd, tmp, to);
 			pthread_mutex_lock(&retx_mutex);
-			if (send_packet(thinfo.th_retx_info[indx].socksd, &thinfo.th_retx_info[indx].addrto, &thinfo.th_retx_info[indx].pck) < 0) {
+			if (send_packet(rtxinfo->snd_info.socksd, &rtxinfo->snd_info.addrto, &rtxinfo->snd_info.pck) < 0) {
 				pthread_mutex_unlock(&retx_mutex);
 				perror("errore in sendto");
 				errors ++;
@@ -37,7 +37,7 @@ void retx_func(void *args) {
 			gettimeofday(&now, NULL);
 			timeout.tv_sec = now.tv_sec + to;
 			timeout.tv_nsec = now.tv_usec * 1000;
-			if ((rc = sem_timedwait(&thinfo.th_retx_info[indx].sem, &timeout)) != 0) {
+			if ((rc = sem_timedwait(&rtxinfo->sem, &timeout)) != 0) {
 				if (errno == ETIMEDOUT) {
 					to ++;
 					printf("RITRASMETTO\n");
@@ -47,7 +47,7 @@ void retx_func(void *args) {
 				}
 			} else {
 				pthread_mutex_lock(&retx_mutex); 
-				thinfo.th_retx_info[indx].pck.index = -1;
+				rtxinfo->snd_info.pck.index = -1;
 				pthread_mutex_unlock(&retx_mutex); 			
 				break;
 			}
@@ -74,32 +74,32 @@ int retx_stop(int pck_index) {
 //	printf("\n============ENTRO IN RETX_STOP: pck_index:%d =========\n", pck_index);
 	int i;
 	
-	pthread_mutex_lock(&retx_mutex);
 	for (i = 0; i < NTHREADS; i ++) {
-		if (thinfo.th_retx_info[i].pck.index == pck_index) {
+		if (retx_threads[i].snd_info.pck.index == pck_index) {
 			break;
 		} 
 	}
 	
-	pthread_mutex_unlock(&retx_mutex);
 	if (i == NTHREADS) {
 		printf("NO THREAD FOUND FOR %d\n", pck_index);
 		return -1;
 	}
 	
-	sem_post(&thinfo.th_retx_info[i].sem);
+	sem_post(&retx_threads[i].sem);
 //	printf("============ESCO DA RETX_STOP=========\n");
 	return 0;
 }
 
-int retx_init() {
+int retx_init(int wr_pipe, pthread_mutex_t *pipe_mutex) {
 	int i;
 	sem_init(&rtx_sem, 0, 0);
 	sem_init(&pck_sem, 0, 1);
 	for (i = 0; i < NTHREADS; i ++) {
-		sem_init(&thinfo.th_retx_info[i].sem, 0, 0);
-		thinfo.th_retx_info[i].index = i;
-		if (pthread_create(&thinfo.threads[i], NULL, (void *)&retx_func, (void *)&thinfo.th_retx_info[i]) != 0) {
+		sem_init(&retx_threads[i].sem, 0, 0);
+		retx_threads[i].index = i;
+		retx_threads[i].retx_wr_pipe = wr_pipe;
+		retx_threads[i].pipe_mutex = pipe_mutex;
+		if (pthread_create(&retx_threads[i].thread, NULL, (void *)&retx_func, (void *)&retx_threads[i]) != 0) {
 			fprintf(stderr,  "errore in pthread_create\n");
 		 	return -1;
 		} 

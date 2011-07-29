@@ -48,10 +48,20 @@ void sp_checker_func(void *args) {
 
 		if (chinfo->sp_flag == 0) {
 			//rimuovere sp
-			printf("IL SUPER PEER NON RISPONDE\n");
-			write(chinfo->sp_checker_pipe, "RST", 4); //avviso la select di rifare il join al BS
 			if ((rc = pthread_mutex_unlock(&chinfo->thinfo.mutex)) != 0) {
 				fprintf(stderr, "sp_checker_func error - can't release lock: %s\n", strerror(rc));
+				pthread_exit((void *)-1);
+			}
+			if ((rc = pthread_mutex_lock(chinfo->pipe_mutex)) != 0) {
+				fprintf(stderr, "sp_checker_func error - can't acquire lock on pipe: %s\n", strerror(rc));
+				pthread_exit((void *)-1);
+			}
+			printf("IL SUPER PEER NON RISPONDE\n");
+			if (write(chinfo->sp_checker_pipe, "RST\n", 4) < 0) { //avviso la select di rifare il join al BS
+				perror("sp_checker_func error - can't write on pipe");
+			}
+			if ((rc = pthread_mutex_unlock(chinfo->pipe_mutex)) != 0) {
+				fprintf(stderr, "sp_checker_func error - can't release lock on pipe: %s\n", strerror(rc));
 				pthread_exit((void *)-1);
 			}
 //			printf("SP_CHECKER RESET\n");

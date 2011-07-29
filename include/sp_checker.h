@@ -13,6 +13,7 @@
 
 struct sp_checker_info {
 	struct th_info thinfo;
+	pthread_mutex_t *pipe_mutex;
 	int sp_checker_pipe;
 	int sp_flag;
 };

@@ -14,26 +14,27 @@
 #define DEFAULT_TO 5
 #define MAX_TO 15
 
+struct send_info {
+	int socksd;
+	struct packet pck;
+	struct sockaddr_in addrto;
+};
 
 struct retx_info {
+	pthread_t thread;
 	int index;
-	int socksd;
-	struct sockaddr_in addrto;
-	struct packet pck;
+	struct send_info snd_info;
 	sem_t sem;
+	pthread_mutex_t *pipe_mutex;
+	int retx_wr_pipe;
 };
 
-struct thread_info {
-	pthread_t threads[NTHREADS];
-	struct retx_info th_retx_info[NTHREADS];
-};
+
+struct retx_info retx_threads[NTHREADS];
 
 sem_t rtx_sem, pck_sem;
 
-struct thread_info thinfo;
-
-struct retx_info packet_to_send;
-
+struct send_info packet_to_send;
 
 void retx_func(void *args);
 
@@ -41,7 +42,7 @@ int retx_send(int socksd, const struct sockaddr_in *addr, const struct packet *p
 
 int retx_stop(int pck_index);
 
-int retx_init();
+int retx_init(int wr_pipe, pthread_mutex_t *pipe_mutex);
 
 int retx_recvfrom(int socksd, struct sockaddr_in *addr, struct packet *pck, int *addr_len);
 
