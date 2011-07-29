@@ -7,11 +7,14 @@ void insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate) {
 	struct node *tmp_node;
 	struct peer_node *new_node;
 	
+	if (peer_list_head == NULL) {
+		curr_p_count = 0;
+	}
 	if ((tmp_node = get_node_peer(peer_addr)) == NULL) {
 		//indirizzo non presente in lista, lo inserisco
 		new_node = new_peer_node(peer_addr, peer_rate);
 		peer_list_head = insert_node(peer_list_head, new_node);
-		
+		curr_p_count ++;	
 	} else {
 		((struct peer_node *)tmp_node->data)->flag = 1;
 	}
@@ -25,10 +28,17 @@ void sorted_insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_
 	struct node *tmp_node;
 	struct peer_node *tmp_peernode;
 
+	if (peer_list_head == NULL) {
+		curr_p_count = 0;
+	}
+
 	tmp_node = peer_list_head;
 
 	while (tmp_node != NULL) {
 		tmp_peernode = (struct peer_node *)tmp_node->data;
+		if (addrcmp(peer_addr, &tmp_peernode->peer_addr)) {
+			return;
+		}
 		if (peer_rate > tmp_peernode->peer_rate) {
 			//passa alla funzione di inserimento il nodo precedente
 			tmp_node = tmp_node->prev;
@@ -41,6 +51,7 @@ void sorted_insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_
 	}
 
  	peer_list_head = sorted_insert_node(peer_list_head, tmp_node, new_peer_node(peer_addr, peer_rate));
+	curr_p_count ++;
 }
 
 /*
@@ -67,6 +78,7 @@ void remove_peer(const struct sockaddr_in *peer_addr) {
 		free(tmp_node->data);
 		tmp_node->data = NULL;
 		peer_list_head = remove_node(peer_list_head, tmp_node);
+		curr_p_count --;
 	}
 }
 
@@ -102,6 +114,8 @@ void remove_peer_node(struct node *peer_node) {
 	free(peer_node->data);
 	peer_node->data = NULL;
 	peer_list_head = remove_node(peer_list_head, peer_node);
+	curr_p_count --;
+	printf("CURR PEER COUNT = %d\n", curr_p_count);
 }
 
 /*

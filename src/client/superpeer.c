@@ -140,7 +140,6 @@ int join_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate, stru
 	}
 	printf("aggiunto peer %s:%d\nrate: %ld\n", inet_ntoa(peer_addr->sin_addr), peer_addr->sin_port, peer_rate);
 	printf("dimensione lista peer: %d\n", get_list_count(peer_list_head));
-	curr_p_count ++;
 
 	return 0;
 }

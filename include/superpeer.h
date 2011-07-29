@@ -21,8 +21,6 @@ int free_sock;
 
 int is_sp;
 
-short curr_p_count; //per contare quanti peer sono connessi a me sp
-
 short have_child; // per ricordare se ho fatto un promote
 
 short curr_child_redirect; //per contare quanti redirect ho inviato su mio figlio

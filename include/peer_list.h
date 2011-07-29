@@ -14,6 +14,8 @@ struct peer_node {
 
 struct node *peer_list_head;
 
+int curr_p_count;
+
 void insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate);
 
 void sorted_insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate);

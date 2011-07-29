@@ -23,7 +23,6 @@
 #include "sp_checker.h"
 #include "select_util.h"
 
-#include "boot.h"
 #include "superpeer.h"
 
 #define MAXLINE		1024
@@ -69,13 +68,23 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr);
 
 int join_handler(int udp_sock, const struct sockaddr_in *addr, const struct packet *pck);
 
-int promote_handler(int udp_sock, const struct sockaddr_in *bs_addr);
+int promote_handler(int udp_sock, const struct sockaddr_in *recv_addr, const struct sockaddr_in *bs_addr, const struct packet *recv_pck);
 
-int end_process();
+int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct packet *recv_pck);
 
-int run_threads();
+int redirect_handler(int udp_sock, const struct packet *recv_pck);
 
-int stop_threads();
+int ping_handler(int udp_sock, const struct sockaddr_in *addr);
+
+int ack_handler(const struct sockaddr_in *addr, const struct sockaddr_in *bs_addr, const struct packet *recv_pck);
+
+void pong_handler();
+
+int end_process(int reset);
+
+int run_threads(const struct sockaddr_in *bs_addr, const struct sockaddr_in *sp_addr);
+
+int stop_threads(int reset);
 
 #endif
 
