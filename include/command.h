@@ -1,5 +1,5 @@
-#ifndef _MSG_H
-#define _MSG_H
+#ifndef _COMMAND_H
+#define _COMMAND_H
 
 #define CMD_STR_LEN 3
 

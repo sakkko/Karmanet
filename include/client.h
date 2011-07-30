@@ -43,6 +43,8 @@
 #define MAX_P_COUNT 2  //numero massimo di peer connessi a me stesso
 #define MAX_REDIRECT_COUNT 10 //numero massimo di redirect
 
+#define MAX_BS_ERROR 5
+
 pthread_mutex_t pipe_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int thread_pipe[2]; // usato per pipe	
@@ -51,11 +53,14 @@ long peer_rate;
 
 int state;
 
+int bserror;
+
 struct sp_checker_info *spchinfo;
 struct peer_list_ch_info *plchinfo;
 struct pinger_info pinfo;
 
 struct sockaddr_in *addr_list;
+int addr_list_len;
 int curr_addr_index;
 
 
@@ -73,9 +78,11 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 
 int redirect_handler(int udp_sock, const struct packet *recv_pck);
 
-int ping_handler(int udp_sock, const struct sockaddr_in *addr);
+int ping_handler(int udp_sock, const struct sockaddr_in *addr, unsigned short index);
 
 int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct sockaddr_in *bs_addr, const struct packet *recv_pck);
+
+int error_handler(int udp_sock, const char *errstr, const struct sockaddr_in *bs_addr);
 
 void pong_handler();
 

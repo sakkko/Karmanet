@@ -116,13 +116,9 @@ int promote_peer(int udp_sock, struct peer_list_ch_info *plchinfo) {
 	if (retx_send(udp_sock, best_peer_addr, &tmp_packet) < 0) {
 		fprintf(stderr, "join_peer error: retx_send failed\n");
 		return -1;
-	} else {
-		//TODO per essere sicuri che il peer è diventato superpeer dovremmo aspettare
-		//un ack e poi settare l'indirizzo del figlio
-		addrcpy(&child_addr, best_peer_addr);
-		have_child = 1;
-		return 0;
-	}
+	} 		
+	
+	return 0;
 
 }
 

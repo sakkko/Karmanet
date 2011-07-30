@@ -45,6 +45,7 @@ int init(int udp_sock) {
 	init_index();
 	retx_init(thread_pipe[1], &pipe_mutex);
 
+	bserror = 0;
 	state = 0;
 	fd_init();	
 	fd_add(fileno(stdin));
@@ -56,7 +57,7 @@ int init(int udp_sock) {
 	actions.sa_handler = sighand;
 
 	if (sigaction(SIGALRM, &actions, NULL) < 0) {
-		perror("sigaction failed");
+		perror("init error - sigaction failed");
 		return 1;
 	}
 
@@ -68,13 +69,13 @@ int init(int udp_sock) {
  * Funzione che gestisce il comando ping.
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
-int ping_handler(int udp_sock, const struct sockaddr_in *addr) {
+int ping_handler(int udp_sock, const struct sockaddr_in *addr, unsigned short index) {
 	struct packet tmp_pck;
 
 	if (is_sp) {
 		printf("Ricevuto ping da %s:%d\n", inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
 		update_peer_flag(plchinfo, addr);
-		new_pong_packet(&tmp_pck, tmp_pck.index);
+		new_pong_packet(&tmp_pck, index);
 		if (mutex_send(udp_sock, addr, &tmp_pck) < 0) {
 			fprintf(stderr, "udp_send error - mutex_send failed\n");
 			return -1;
@@ -156,7 +157,7 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 		//ricevuto ERR
 		;
 	} else if (!strncmp(recv_pck.cmd, CMD_PING, CMD_STR_LEN)) { 
-		if (ping_handler(udp_sock, &addr) < 0) {
+		if (ping_handler(udp_sock, &addr, recv_pck.index) < 0) {
 			fprintf(stderr, "udp_handler error - ping_handler failed\n");
 		}
 	} else if (!strncmp(recv_pck.cmd, CMD_LEAVE, CMD_STR_LEN)) { 
@@ -219,7 +220,9 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 
 	if (state == ST_JOINBS_SENT) {
 		retx_stop(recv_pck->index);
-		addr_list = str_to_addr(recv_pck->data, recv_pck->data_len / 6);
+		bserror = 0;
+		addr_list_len = recv_pck->data_len / 6;
+		addr_list = str_to_addr(recv_pck->data, addr_list_len);
 		curr_addr_index = 0;
 		new_join_packet_rate(&send_pck, get_index(), peer_rate);
 
@@ -230,7 +233,9 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 		state = ST_JOINSP_SENT;
 	} else if (state == ST_PROMOTE_RECV) {
 		retx_stop(recv_pck->index);
-		addr_list = str_to_addr(recv_pck->data, recv_pck->data_len / 6);
+		bserror = 0;
+		addr_list_len = recv_pck->data_len / 6;
+		addr_list = str_to_addr(recv_pck->data, addr_list_len);
 		init_superpeer(udp_sock, addr_list, recv_pck->data_len / 6);
 		free(addr_list);
 		addr_list = NULL;
@@ -314,11 +319,10 @@ int join_handler(int udp_sock, const struct sockaddr_in *addr, const struct pack
 			if (have_child == 0) {
 				printf("PROMUOVO\n");
 				if (promote_peer(udp_sock, plchinfo) < 0) {
-					fprintf(stderr, "join_handler error - can't promote peer\n");
+					fprintf(stderr, "join_handler error - promote_peer failed\n");
 					return -1;
 				}
 				state = ST_PROMOTE_SENT;
-				insert_request(&child_addr, pck->index);
 				return 0;
 			} else {
 				printf("DIROTTO\n");
@@ -426,8 +430,8 @@ int stop_threads(int reset) {
 		free(plchinfo);
 		plchinfo = NULL;
 	} else {
-		//interrompo il thread che controlla il superpeer
 		if (reset == 0) {
+			//interrompo il thread che controlla il superpeer
 			if (sp_checker_stop(spchinfo) < 0) {
 				fprintf(stderr, "stop_threads error - can't stop superpeer checker\n");
 				return -1;
@@ -451,6 +455,69 @@ int stop_threads(int reset) {
 	
 }
 
+/*
+ * Funzione che gestisce le situazioni di errore segnalate dai thread che effettuano
+ * la ritrasmissione.
+ * Ritorna 0 in caso di successo e -1 in caso di errore.
+ */
+int error_handler(int udp_sock, const char *errstr, const struct sockaddr_in *bs_addr) {
+	struct packet send_pck;
+
+	if (!strncmp(errstr, CMD_JOIN, CMD_STR_LEN)) {
+		if (state == ST_JOINBS_SENT) {
+			printf("Impossibile contattare il server di bootstrap\n");
+			if (bserror < MAX_BS_ERROR) {
+				printf("Riprovo a contattare il server di bootstrap\n");
+				bserror ++;
+				new_join_packet(&send_pck, get_index());
+				if (retx_send(udp_sock, bs_addr, &send_pck) < 0) {
+					fprintf(stderr, "error_handler error - retx_send failed\n");
+					return -1;
+				}
+				state = ST_JOINBS_SENT;
+			} else {
+				printf("Troppi tentativi, server di bootstrap irraggiungibile - Abort\n");
+				exit(1);
+			}
+		} else if (state == ST_JOINSP_SENT) {
+			printf("Impossibile contattare superpeer %s:%d\n", inet_ntoa(addr_list[curr_addr_index].sin_addr), ntohs(addr_list[curr_addr_index].sin_port));
+			if (curr_addr_index < addr_list_len - 1) {
+				printf("Provo a contattare il prossimo della lista\n");
+				curr_addr_index ++;
+				new_join_packet_rate(&send_pck, get_index(), peer_rate);
+				if (retx_send(udp_sock, &addr_list[curr_addr_index], &send_pck) < 0) {
+					fprintf(stderr, "error_handler error - retx_send failed\n");
+					return -1;
+				}
+				state = ST_JOINSP_SENT;
+			} else {
+				printf("Richiedo la lista al bootstrap\n");
+				new_join_packet(&send_pck, get_index());
+				if (retx_send(udp_sock, bs_addr, &send_pck) < 0) {
+					fprintf(stderr, "error_handler error - retx_send failed\n");
+					return -1;
+				}
+				state = ST_JOINBS_SENT;
+			}
+		}
+	} else if (!strncmp(errstr, CMD_PROMOTE, CMD_STR_LEN)) {
+		printf("Impossibile inviare promote al best peer\n");
+		if (curr_p_count >= MAX_P_COUNT) {
+			printf("Riprovo a promuovere il best peer\n");
+			if (promote_peer(udp_sock, plchinfo) < 0) {
+				fprintf(stderr, "error_handler error - promote_peer failed\n");
+				return -1;
+			}
+			state = ST_PROMOTE_SENT;
+
+		} else {
+			printf("Promote non più necessario, rinuncio\n");
+			state = ST_ACTIVE;
+		}
+	}
+
+	return 0;
+}
 
 int main (int argc,char *argv[]){
 	int udp_sock, ready;
@@ -532,7 +599,11 @@ int main (int argc,char *argv[]){
 				state = ST_JOINBS_SENT;
 			} else if (!strncmp(str, "ERR", 3)) {
 				//si è verificato un errore
-				//TODO gestione dell'errore
+				printf("SI E' VERIFICATO UN ERRORE\n");
+				if (error_handler(udp_sock, str + 4, &bs_addr) < 0) {
+					fprintf(stderr, "Can't handler error\n");
+					return 1;
+				}
 			}
 
 		} else {

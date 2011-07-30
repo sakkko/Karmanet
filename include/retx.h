@@ -44,10 +44,10 @@ int retx_stop(int pck_index);
 
 int retx_init(int wr_pipe, pthread_mutex_t *pipe_mutex);
 
-int retx_recvfrom(int socksd, struct sockaddr_in *addr, struct packet *pck, int *addr_len);
-
-int retx_recv(int socksd, struct packet *pck);
-
 int mutex_send(int socksd, const struct sockaddr_in *addr, const struct packet *pck);
+
+int get_pck_tosend(struct retx_info *rtxinfo);
+
+int write_err(const struct retx_info *rtxinfo, char *msg);
 
 #endif
