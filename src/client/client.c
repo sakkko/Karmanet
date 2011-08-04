@@ -7,7 +7,6 @@ void print_addr_list(struct sockaddr_in *addr, int dim) {
 	for (i = 0; i < dim; i ++) {
 		printf("%d address: %lu : %u\n", i, (unsigned long)addr[off * i].sin_addr.s_addr, addr[off * i].sin_port);
 	}		
-
 }
 
 /*
@@ -74,7 +73,7 @@ int ping_handler(int udp_sock, const struct sockaddr_in *addr, unsigned short in
 
 	if (is_sp) {
 		printf("Ricevuto ping da %s:%d\n", inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
-		update_peer_flag(plchinfo, addr);
+		update_peer_flag(peer_list_checker, addr);
 		new_pong_packet(&tmp_pck, index);
 		if (mutex_send(udp_sock, addr, &tmp_pck) < 0) {
 			fprintf(stderr, "udp_send error - mutex_send failed\n");
@@ -91,7 +90,7 @@ int ping_handler(int udp_sock, const struct sockaddr_in *addr, unsigned short in
 void pong_handler() {
 	if (is_sp == 0) {
 		printf("Ricevuto pong da superpeer\n");
-		update_sp_flag(spchinfo);
+		update_sp_flag(sp_checker);
 	}
 }
 
@@ -299,7 +298,11 @@ int promote_handler(int udp_sock, const struct sockaddr_in *recv_addr, const str
 int join_handler(int udp_sock, const struct sockaddr_in *addr, const struct packet *pck) {
 	struct packet tmp_packet;
 
-	if (is_sp == 0 || state == ST_PROMOTE_SENT) {
+	//se ha inviato un promote e sta ancora aspettando la risposta, ignora i join che riceve
+	if (state == ST_PROMOTE_SENT) {
+		return 0;
+	}
+	if (is_sp == 0) {
 		new_err_packet(&tmp_packet, pck->index);
 		if (mutex_send(udp_sock, addr, &tmp_packet) < 0) {
 			fprintf(stderr, "join_handler error - mutex_send failed\n");
@@ -307,26 +310,36 @@ int join_handler(int udp_sock, const struct sockaddr_in *addr, const struct pack
 		}
 		return 0;
 	} else {
-		if (curr_p_count < MAX_P_COUNT) {
-			//posso accettare il peer
-			if (join_peer(addr, btol(pck->data), plchinfo) < 0) {
-				fprintf(stderr, "join_handler error - can't join peer\n");
-				return -1;
-			}
+		if (get_node_peer(addr) != NULL) {
 			new_ack_packet(&tmp_packet, pck->index);
 		} else {
-			printf("troppi P!!!\n");
-			if (have_child == 0) {
-				printf("PROMUOVO\n");
-				if (promote_peer(udp_sock, plchinfo) < 0) {
-					fprintf(stderr, "join_handler error - promote_peer failed\n");
+			if (curr_p_count < MAX_P_COUNT) {
+				//posso accettare il peer
+				if (join_peer(addr, btol(pck->data), peer_list_checker) < 0) {
+					fprintf(stderr, "join_handler error - can't join peer\n");
 					return -1;
 				}
-				state = ST_PROMOTE_SENT;
-				return 0;
+				new_ack_packet(&tmp_packet, pck->index);
 			} else {
-				printf("DIROTTO\n");
-				new_redirect_packet(&tmp_packet, pck->index, &child_addr);
+				printf("troppi P!!!\n");
+				if (have_child == 0) {
+					curr_redirect_count = 0;
+					printf("PROMUOVO\n");
+					if (promote_peer(udp_sock, peer_list_checker) < 0) {
+						fprintf(stderr, "join_handler error - promote_peer failed\n");
+						return -1;
+					}
+					state = ST_PROMOTE_SENT;
+					return 0;
+				} else {
+					printf("DIROTTO\n");
+					curr_redirect_count ++;
+					if (curr_redirect_count >= MAX_REDIRECT_COUNT) {
+						printf("Troppi dirottamenti, al prossimo join promuovo\n");
+						have_child = 0;
+					}
+					new_redirect_packet(&tmp_packet, pck->index, &child_addr);
+				}
 			}
 		}
 	}
@@ -358,39 +371,39 @@ int end_process(int reset) {
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
 int run_threads(int udp_sock, const struct sockaddr_in *bs_addr, const struct sockaddr_in *sp_addr) {
-	pinfo.socksd = udp_sock;
+	pinger.socksd = udp_sock;
 
 	if (is_sp) {
 		//alloco la struttura per il controllo della lista dei peer
-		plchinfo = (struct peer_list_ch_info *)malloc(sizeof(struct peer_list_ch_info));
+		peer_list_checker = (struct peer_list_ch_info *)malloc(sizeof(struct peer_list_ch_info));
 		//setto il puntatore alla variabile che contiene l'indirizzo della testa della lista
-		plchinfo->peer_list = &peer_list_head;
+		peer_list_checker->peer_list = &peer_list_head;
 		//faccio partire il thread che controlla la lista
-		if (peer_list_checker_run(plchinfo) < 0) {
+		if (peer_list_checker_run(peer_list_checker) < 0) {
 			fprintf(stderr, "Can't star peer list checker\n");
 			return -1;
 		}
 		//imposto l'indirizzo a cui fare il ping
-		addrcpy(&pinfo.addr_to_ping, bs_addr);
+		addrcpy(&pinger.addr_to_ping, bs_addr);
 	} else {
 		//alloco la struttura per il controllo del superpeer
-		spchinfo = (struct sp_checker_info *)malloc(sizeof(struct sp_checker_info));
+		sp_checker = (struct sp_checker_info *)malloc(sizeof(struct sp_checker_info));
 		//imposto il flag di presenza del superpeer
-		spchinfo->sp_flag = 1;
+		sp_checker->sp_flag = 1;
 		//imposto la pipe
-		spchinfo->sp_checker_pipe = thread_pipe[1];
-		spchinfo->pipe_mutex = &pipe_mutex;
+		sp_checker->sp_checker_pipe = thread_pipe[1];
+		sp_checker->pipe_mutex = &pipe_mutex;
 		//faccio partire il thread che controlla il flag di presenza del superpeer
-		if (sp_checker_run(spchinfo) < 0) {
+		if (sp_checker_run(sp_checker) < 0) {
 			fprintf(stderr, "Can't start superpeer checker\n");
 			return -1;
 		}
 		//imposto l'indirizzo a cui fare il ping
-		addrcpy(&pinfo.addr_to_ping, sp_addr);
+		addrcpy(&pinger.addr_to_ping, sp_addr);
 	}
 
 	//faccio partire il processo dei ping
-	if (pinger_run(&pinfo) < 0) {
+	if (pinger_run(&pinger) < 0) {
 		fprintf(stderr, "Can't start ping thread\n");
 		return -1;
 	}
@@ -412,40 +425,40 @@ int stop_threads(int reset) {
 	int ret_value, rc;
 
 	//interrompo il thread che fa i ping
-	if (pinger_stop(&pinfo) < 0) {
+	if (pinger_stop(&pinger) < 0) {
 		fprintf(stderr, "stop_threads error - can't stop pinger\n");
 		return -1;
 	}
 
 	if (is_sp) {
 		//interrompo il thread che controlla la lista dei peer
-		if (peer_list_checker_stop(plchinfo) < 0) {
+		if (peer_list_checker_stop(peer_list_checker) < 0) {
 			fprintf(stderr, "stop_threads error - can't stop peer list checker\n");
 			return -1;
 		}
-		if ((rc = pthread_join(plchinfo->thinfo.thread, (void *)&ret_value)) != 0) {
+		if ((rc = pthread_join(peer_list_checker->thinfo.thread, (void *)&ret_value)) != 0) {
 			fprintf(stderr, "stop_threads error - can't join peer list checker thread: %s\n", strerror(rc));
 			return -1;
 		}
-		free(plchinfo);
-		plchinfo = NULL;
+		free(peer_list_checker);
+		peer_list_checker = NULL;
 	} else {
 		if (reset == 0) {
 			//interrompo il thread che controlla il superpeer
-			if (sp_checker_stop(spchinfo) < 0) {
+			if (sp_checker_stop(sp_checker) < 0) {
 				fprintf(stderr, "stop_threads error - can't stop superpeer checker\n");
 				return -1;
 			}
 		}
-		if ((rc = pthread_join(spchinfo->thinfo.thread, (void *)&ret_value)) != 0) {
+		if ((rc = pthread_join(sp_checker->thinfo.thread, (void *)&ret_value)) != 0) {
 			fprintf(stderr, "stop_threads error - can't join superpeer checker thread: %s\n", strerror(rc));
 			return -1;
 		}
-		free(spchinfo);
-		spchinfo = NULL;
+		free(sp_checker);
+		sp_checker = NULL;
 	}
 
-	if ((rc = pthread_join(pinfo.thinfo.thread, (void *)&ret_value)) != 0) {
+	if ((rc = pthread_join(pinger.thinfo.thread, (void *)&ret_value)) != 0) {
 		fprintf(stderr, "stop_threads error - can't join pinger thread: %s\n", strerror(rc));
 		return -1;
 	}
@@ -504,7 +517,7 @@ int error_handler(int udp_sock, const char *errstr, const struct sockaddr_in *bs
 		printf("Impossibile inviare promote al best peer\n");
 		if (curr_p_count >= MAX_P_COUNT) {
 			printf("Riprovo a promuovere il best peer\n");
-			if (promote_peer(udp_sock, plchinfo) < 0) {
+			if (promote_peer(udp_sock, peer_list_checker) < 0) {
 				fprintf(stderr, "error_handler error - promote_peer failed\n");
 				return -1;
 			}
@@ -567,7 +580,9 @@ int main (int argc,char *argv[]){
 		}
 	    	
 		if (fd_ready(udp_sock)) { 
-			udp_handler(udp_sock, &bs_addr);
+			if (udp_handler(udp_sock, &bs_addr) < 0) {
+				fprintf(stderr, "udp_handler failed\n");
+			}
 		} else if (fd_ready(fileno(stdin))) {
 			;
 		} else if (fd_ready(tcp_listen)) {
@@ -601,7 +616,7 @@ int main (int argc,char *argv[]){
 				//si è verificato un errore
 				printf("SI E' VERIFICATO UN ERRORE\n");
 				if (error_handler(udp_sock, str + 4, &bs_addr) < 0) {
-					fprintf(stderr, "Can't handler error\n");
+					fprintf(stderr, "Can't handle error\n");
 					return 1;
 				}
 			}

@@ -22,12 +22,9 @@
 #include "peer_list_checker.h"
 #include "sp_checker.h"
 #include "select_util.h"
-
 #include "superpeer.h"
 
-#define MAXLINE		1024
-#define DIM_P 		4
-#define DIM_SP 		5
+#define MAXLINE	1024
 
 #define ST_JOINBS_SENT 1
 #define ST_JOINSP_SENT 2
@@ -40,8 +37,8 @@
 #define UDP_PORT 5193
 #define BS_PORT 5193
 
-#define MAX_P_COUNT 2  //numero massimo di peer connessi a me stesso
-#define MAX_REDIRECT_COUNT 10 //numero massimo di redirect
+#define MAX_P_COUNT 4  //numero massimo di peer connessi a me stesso
+#define MAX_REDIRECT_COUNT 2 //numero massimo di redirect
 
 #define MAX_BS_ERROR 5
 
@@ -55,13 +52,14 @@ int state;
 
 int bserror;
 
-struct sp_checker_info *spchinfo;
-struct peer_list_ch_info *plchinfo;
-struct pinger_info pinfo;
+struct sp_checker_info *sp_checker;
+struct peer_list_ch_info *peer_list_checker;
+struct pinger_info pinger;
 
 struct sockaddr_in *addr_list;
 int addr_list_len;
 int curr_addr_index;
+int curr_redirect_count;
 
 
 void set_rate();
