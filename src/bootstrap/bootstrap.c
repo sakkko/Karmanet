@@ -77,6 +77,7 @@ int set_str_addrlist(char *str) {
 	char *ptr;
 	int i, ret;
 	struct sockaddr_in *saddr;
+	struct node *it_tmp;
 
 	ptr = str;
 	//di default invio 4 indirizzi
@@ -86,11 +87,16 @@ int set_str_addrlist(char *str) {
 		ret = sp_count;
 	}
 
+	saddr = get_addr();
+	it_tmp = it_addr;
+
 	for (i = 0; i < ret; i ++) {
-		saddr = get_addr();
 		addr2str(ptr, saddr->sin_addr.s_addr, saddr->sin_port);
 		ptr += ADDR_STR_LEN;
+		saddr = get_addr();
 	}
+
+	it_addr = it_tmp;
 
 	return ret;
 }
