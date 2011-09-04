@@ -10,6 +10,7 @@
 #include <sys/wait.h>
 
 #include "command.h"
+#include "config.h"
 #include "hashtable.h"
 #include "inetutil.h"
 #include "ioutil.h"
@@ -55,6 +56,7 @@ int bserror;
 struct sp_checker_info *sp_checker;
 struct peer_list_ch_info *peer_list_checker;
 struct pinger_info pinger;
+
 
 struct sockaddr_in *addr_list;
 int addr_list_len;

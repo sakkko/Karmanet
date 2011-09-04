@@ -89,7 +89,7 @@ int ping_handler(int udp_sock, const struct sockaddr_in *addr, unsigned short in
  */
 void pong_handler() {
 	if (is_sp == 0) {
-		printf("Ricevuto pong da superpeer\n");
+	//	printf("Ricevuto pong da superpeer\n");
 		update_sp_flag(sp_checker);
 	}
 }
@@ -130,7 +130,7 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 	struct sockaddr_in addr;
 	int len = sizeof(struct sockaddr_in); 
 	
-	printf("========= UDP_HANDLER ==============\n");
+//	printf("========= UDP_HANDLER ==============\n");
 	
 	if (recvfrom_packet(udp_sock, &addr, &recv_pck, &len) < 0) {
 		printf("ERRORE RECV_PACKET\n");
@@ -139,7 +139,7 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 
 	//TODO se ho già processato questa richiesta nel immediato passato rinvio l'ack
 	
-	printf("PACKET: CMD=%s INDEX=%u\n", recv_pck.cmd, recv_pck.index);
+//	printf("PACKET: CMD=%s INDEX=%u\n", recv_pck.cmd, recv_pck.index);
 			
 	if (!strncmp(recv_pck.cmd, CMD_ACK, CMD_STR_LEN)) {
 		//ricevuto ack
@@ -536,10 +536,12 @@ int main (int argc,char *argv[]){
 	int udp_sock, ready;
 	int i; //lunghezza indirizzi ricevuti
 
+	struct config conf;
+
 	char str[MAXLINE];
 	int nread;
 
-	struct sockaddr_in bs_addr;
+	struct sockaddr_in addr;
 	struct packet tmp_pck;
 
 	// controlla numero degli argomenti
@@ -553,7 +555,24 @@ int main (int argc,char *argv[]){
 		return -1;
 	}
 
-	if (set_addr_in(&bs_addr, argv[1], BS_PORT) < 0) {
+	if (read_config(&conf) < 0) {
+		fprintf(stderr, "Can't read configuration file\n");
+		return -1;
+	}
+
+	set_addr_any(&addr, conf.udp_port);	
+
+	if (inet_bind(udp_sock, &addr) < 0) {
+		perror("inet_bind failed");
+		return 1;
+	}
+
+	if (conf.udp_port == 0) {
+		conf.udp_port = get_local_port(udp_sock);
+		printf("PORT = %u\n", ntohs(conf.udp_port));
+	}
+
+	if (set_addr_in(&addr, argv[1], BS_PORT) < 0) {
 		fprintf(stderr, "Invalid address %s", argv[1]);
 		return 1;
 	}	
@@ -565,7 +584,7 @@ int main (int argc,char *argv[]){
 	
 
 	new_join_packet(&tmp_pck, get_index());
-	if (retx_send(udp_sock, &bs_addr, &tmp_pck) < 0) {
+	if (retx_send(udp_sock, &addr, &tmp_pck) < 0) {
 		fprintf(stderr, "Can't send join to bootstrap\n");
 		return 1;
 	}
@@ -580,7 +599,7 @@ int main (int argc,char *argv[]){
 		}
 	    	
 		if (fd_ready(udp_sock)) { 
-			if (udp_handler(udp_sock, &bs_addr) < 0) {
+			if (udp_handler(udp_sock, &addr) < 0) {
 				fprintf(stderr, "udp_handler failed\n");
 			}
 		} else if (fd_ready(fileno(stdin))) {
@@ -606,7 +625,7 @@ int main (int argc,char *argv[]){
 				stop_threads(1);
 
 				new_join_packet(&tmp_pck, get_index());
-				if (retx_send(udp_sock, &bs_addr, &tmp_pck) < 0) {
+				if (retx_send(udp_sock, &addr, &tmp_pck) < 0) {
 					fprintf(stderr, "Can't send join to bootstrap\n");
 					return 1;
 				}
@@ -615,7 +634,7 @@ int main (int argc,char *argv[]){
 			} else if (!strncmp(str, "ERR", 3)) {
 				//si è verificato un errore
 				printf("SI E' VERIFICATO UN ERRORE\n");
-				if (error_handler(udp_sock, str + 4, &bs_addr) < 0) {
+				if (error_handler(udp_sock, str + 4, &addr) < 0) {
 					fprintf(stderr, "Can't handle error\n");
 					return 1;
 				}

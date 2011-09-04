@@ -134,7 +134,7 @@ int join_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate, stru
 		fprintf(stderr, "join_peer error - can't release lock: %s\n", strerror(rc));
 		return -1;
 	}
-	printf("aggiunto peer %s:%d\nrate: %ld\n", inet_ntoa(peer_addr->sin_addr), peer_addr->sin_port, peer_rate);
+	printf("aggiunto peer %s:%d\nrate: %ld\n", inet_ntoa(peer_addr->sin_addr), ntohs(peer_addr->sin_port), peer_rate);
 	printf("dimensione lista peer: %d\n", get_list_count(peer_list_head));
 
 	return 0;
