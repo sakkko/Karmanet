@@ -1,52 +1,104 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <dirent.h>
-#include <sys/types.h> 
-#include <sys/stat.h>
-#include <fcntl.h> 
+#include "lista_file.h"
 
-#include "ioutil.h"
+int selfile(const struct dirent *dirname) {
+	if (dirname->d_name[0] == '.') {
+		return 0;
+	} else if (dirname->d_type == DT_REG) {
+		return 1;
+	} else {
+		return 0;
+	}
+}
 
+int seldir(const struct dirent *dirname) {
+	if (dirname->d_name[0] == '.') {
+		return 0;
+	} else if (dirname->d_type == DT_DIR) {
+		return 1;
+	} else {
+		return 0;
+	}
+	
+}
 
-void write_share_file(char *dir_path,int fd){
+int write_share_file(int fd_share, const char *dirname) {
+	struct dirent **file_list;
+	struct dirent **dir_list;
+	int nfile, ndir, i;
+	char str[255];
+	
+	if ((nfile = scandir(dirname, &file_list, selfile, alphasort)) < 0) {
+		perror("write_share_file error - scandir failed for file");
+		return -1;
+	}
+
+	if ((ndir = scandir(dirname, &dir_list, seldir, alphasort)) < 0) {
+		perror("write_share_file error - scandir failed for directory");
+		return -1;
+	}
+
+	if (nfile > 0) {
+	/*	snprintf(str, 255, "%s\n", dirname);
+		if (write(fd_share, str, strlen(str)) < 0) {
+			perror("write_share_file error - write failed");
+			return -1;
+		}
+*/
+		for (i = 0; i < nfile; i ++) {
+			snprintf(str, 255, "%s\n", file_list[i]->d_name);
+			if (write(fd_share, str, strlen(str)) < 0) {
+				perror("write_share_file error - write failed");
+				return -1;
+			}
+			free(file_list[i]);
+		}
+	}
+
+	for (i = 0; i < ndir; i ++) {
+		snprintf(str, 255, "%s/%s", dirname, dir_list[i]->d_name);
+		if (write_share_file(fd_share, str) < 0) {
+			free(dir_list[i]);
+			return -1;
+		}
+		free(dir_list[i]);
+	}
+	
+	return 0;
+}
+
+#if 0 
+void write_share_filei2(char *dir_path, int fd){
 	char temp[255];
+	char temp1[255];
 	
 	struct dirent *dp;
-	
 	DIR *dir = opendir(dir_path);
 	
-	while ((dp=readdir(dir)) != NULL) {
-	
-	
-		if(!strcmp(dp->d_name,".")||!strcmp(dp->d_name,".."))		
+	while ((dp = readdir(dir)) != NULL) {
+		if(!strcmp(dp->d_name,".")||!strcmp(dp->d_name,"..")) {		
 			continue;
-		
-		else if(dp->d_type==4){
-		
-			strcpy(temp,dir_path);
-			sprintf(temp,"%s/%s",dir_path,dp->d_name);
-			write_share_file(temp,fd);
-		
-		}
-		else{
-			char temp1[255];
-			sprintf(temp1,"%s/%s",dir_path,dp->d_name);
-			write (fd,temp1,strlen(temp1));
-			write (fd,"\n",1);
+		} else if (dp->d_type == DT_DIR) {
+			strncpy(temp, dir_path, 255);
+			sprintf(temp,"%s/%s", dir_path, dp->d_name);
+			write_share_file(temp, fd);
+		} else {
+			sprintf(temp1,"%s/%s\n", dir_path, dp->d_name);
+			write(fd,temp1,strlen(temp1));
 		}
 	}
 	
 	closedir(dir);
 
 }
+#endif
 
-
-void share_file(char *dir_path,char *file_log){
-	int fd = open (file_log, O_WRONLY|O_CREAT, 0666);
-	write_share_file(dir_path,fd);
+void share_file(char *dir_path, char *file_log){
+	int fd = open (file_log, O_WRONLY | O_TRUNC | O_CREAT, 0644);
+	write_share_file(fd, dir_path);
 	close(fd);
 }
+
+#if 0
 //scrivo nel file difference le stringhe non presenti in uno ma nell'altro e viceversa
 int control_file (char *dir_path,char * file_log,char * changes){
 	int n =0;
@@ -102,7 +154,6 @@ int control_file (char *dir_path,char * file_log,char * changes){
 	return 0;
 }
 
-#if 0
 int main () {
 char * c;
 //share_file("/home/matteo/lista_file","./prova.txt");
@@ -130,3 +181,4 @@ control_file("/home/matteo/lista_file","./prova.txt",c);
 	return 0;
 }
 #endif
+

@@ -424,7 +424,7 @@ void print_ip_table() {
 		f = 1;
 		//printf("\nCELLA NON VUOTA - KEY: %d\n", i);
 		while (ip_node_app != NULL) {
-			printf("IP: %lu\n", ip_node_app->ip);
+			printf("\nIP: %lu\n", ip_node_app->ip);
 			file_info_app = ip_node_app->file_list;
 
 			c = 1;

@@ -24,6 +24,7 @@
 #include "sp_checker.h"
 #include "select_util.h"
 #include "superpeer.h"
+#include "lista_file.h"
 
 #define MAXLINE	1024
 
@@ -34,6 +35,7 @@
 #define ST_REGISTER_SENT 5
 #define ST_ACTIVE 6
 #define ST_LEAVE_SENT 7
+#define ST_FILELIST_SENT 8
 
 #define UDP_PORT 5193
 #define BS_PORT 5193
@@ -52,6 +54,10 @@ long peer_rate;
 int state;
 
 int bserror;
+
+int fd_offset;
+
+struct config conf;
 
 struct sp_checker_info *sp_checker;
 struct peer_list_ch_info *peer_list_checker;
@@ -91,6 +97,12 @@ int end_process(int reset);
 int run_threads(int udp_sock, const struct sockaddr_in *bs_addr, const struct sockaddr_in *sp_addr);
 
 int stop_threads(int reset);
+
+int send_share_file(int udp_sock, const struct sockaddr_in *addr);
+
+int add_sp_file(const struct sockaddr_in *addr);
+
+int send_share(int udp_sock, const struct sockaddr_in *addr);
 
 #endif
 

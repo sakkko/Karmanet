@@ -50,4 +50,6 @@ int get_pck_tosend(struct retx_info *rtxinfo);
 
 int write_err(const struct retx_info *rtxinfo, char *msg);
 
+int try_retx_send(int socksd, const struct sockaddr_in *addr, const struct packet *pck);
+
 #endif

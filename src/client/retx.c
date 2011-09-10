@@ -147,6 +147,29 @@ int retx_send(int socksd, const struct sockaddr_in *addr, const struct packet *p
 	
 }
 
+int try_retx_send(int socksd, const struct sockaddr_in *addr, const struct packet *pck) {
+//	printf("============ENTRO IN RETX_SEND=========\n");
+	
+	if (sem_trywait(&pck_sem) < 0) {
+		if (errno == EAGAIN) {
+			return -2;
+		}
+		perror("retx_send error - sem_wait failed");
+		return -1;
+	}
+	packet_to_send.socksd = socksd;
+	addrcpy(&packet_to_send.addrto, addr);
+	pckcpy(&packet_to_send.pck, pck);
+	if (sem_post(&rtx_sem) < 0) {
+		perror("retx_send error - sem_post failed");
+		return -1;
+	}
+
+//	printf("============ESCO DA RETX_SEND=========\n");
+	return 0;
+	
+}
+
 int retx_stop(int pck_index) {
 //	printf("\n============ENTRO IN RETX_STOP: pck_index:%d =========\n", pck_index);
 	int i;

@@ -140,4 +140,23 @@ int join_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate, stru
 	return 0;
 }
 
+int add_files(const struct sockaddr_in *peer_addr, const char *pck_data, int data_len) {
+	int i, j;
+	char tmp[1024];
+
+	printf("%s\n", pck_data);
+	j = 0;
+	for (i = 0; i < data_len; i ++) {
+		if (pck_data[i] != '\n') {
+			tmp[j] = pck_data[i];
+			j ++;
+		} else {
+			tmp[j] = 0;
+			j = 0;
+			insert_file(tmp, peer_addr->sin_addr.s_addr, peer_addr->sin_port);
+		}
+	}
+
+	return 0;
+}
 

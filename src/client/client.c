@@ -72,7 +72,7 @@ int ping_handler(int udp_sock, const struct sockaddr_in *addr, unsigned short in
 	struct packet tmp_pck;
 
 	if (is_sp) {
-		printf("Ricevuto ping da %s:%d\n", inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
+//		printf("Ricevuto ping da %s:%d\n", inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
 		update_peer_flag(peer_list_checker, addr);
 		new_pong_packet(&tmp_pck, index);
 		if (mutex_send(udp_sock, addr, &tmp_pck) < 0) {
@@ -99,6 +99,7 @@ void pong_handler() {
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
 int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct sockaddr_in *bs_addr, const struct packet *recv_pck) {
+	struct sockaddr_in maddr;
 	if (state == ST_JOINSP_SENT) {
 		retx_stop(recv_pck->index);
 		run_threads(udp_sock, NULL, addr);	
@@ -106,6 +107,9 @@ int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct socka
 		state = ST_ACTIVE;
 		free(addr_list);
 		addr_list = NULL;
+		share_file(conf.share_folder, ".karma.share");
+		fd_offset = 0;
+		send_share(udp_sock, addr);
 	} else if (state == ST_PROMOTE_SENT) {
 		retx_stop(recv_pck->index);
 		addrcpy(&child_addr, addr);
@@ -116,9 +120,131 @@ int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct socka
 		stop_threads(0);
 		is_sp = 1;
 		run_threads(udp_sock, bs_addr, NULL);
+		share_file(conf.share_folder, ".karma.share");
+		get_local_addr(udp_sock, &maddr);
+		add_sp_file(&maddr);
+	} else if (state == ST_FILELIST_SENT) {
+		retx_stop(recv_pck->index);	
+		send_share(udp_sock, addr);
+	} else {
+		retx_stop(recv_pck->index);	
 	}
 
 	return 0;
+}
+
+int file_list_handler(int udp_sock, const struct sockaddr_in *addr, const struct packet *recv_pck) {
+	struct packet send_pck;
+
+	if (add_files(addr, recv_pck->data, recv_pck->data_len) < 0) {
+		fprintf(stderr, "file_list_handler error - add files faield\n");
+		return -1;
+	} else {
+		new_ack_packet(&send_pck, recv_pck->index);
+		if (mutex_send(udp_sock, addr, &send_pck) < 0) {
+			fprintf(stderr, "file_list_handler error - mutex_send faield\n");
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+int add_sp_file(const struct sockaddr_in *addr) {
+	int fd;
+	int n;
+	int rc = 0;
+	char buff[255];
+
+	if ((fd = open(".karma.share", O_RDONLY)) < 0) {
+		perror("add_sp_file error - open failed");
+		return -1;
+	}
+
+	while ((n = readline(fd, buff, 255)) > 0) {
+		if (*buff == '/') {
+			continue;
+		}
+		buff[n - 1] = 0;
+		rc ++;
+		insert_file(buff, addr->sin_addr.s_addr, addr->sin_port);
+	}
+
+	print_file_table();
+	print_ip_table();
+
+	printf("RC=%d\n", rc);
+
+	if (close(fd) < 0) {
+		perror("add_sp_file error - close failed");
+		return -1;
+	}
+
+
+	return 0;	
+}
+
+
+int send_share(int udp_sock, const struct sockaddr_in *addr) {
+	int fd;
+	struct packet pck;
+	char buf[1024];
+	char tmp[1024];
+	int n, rc, count = 0;
+
+	if ((fd = open(".karma.share", O_RDONLY)) < 0) {
+		perror("send_share_file error - open failed");
+		return -1;
+	}
+
+	lseek(fd, fd_offset, SEEK_SET);
+	while ((n = readline(fd, buf, 1024)) > 0) {
+		if (*buf == '/') {
+			continue;
+		}
+		if (count + n < 1024) {
+			strcpy(tmp + count, buf);
+			count += n;
+		} else {
+			new_packet(&pck, CMD_FILE, get_index(), tmp, strlen(tmp), 1);
+			if ((rc = try_retx_send(udp_sock, addr, &pck)) < 0) {
+				close(fd);
+				if (rc == -2) {
+					state = ST_FILELIST_SENT;
+					return 0;
+				}
+				fprintf(stderr, "send_share error - try_retx_send failed\n");
+				return -1;
+			}
+
+			fd_offset = lseek(fd, n * -1, SEEK_CUR);
+			count = 0;
+		}
+	}
+
+
+	new_packet(&pck, CMD_FILE, get_index(), tmp, strlen(tmp), 1);
+	if ((rc = try_retx_send(udp_sock, addr, &pck)) < 0) {
+		close(fd);
+		if (rc == -2) {
+			state = ST_FILELIST_SENT;
+			return 0;
+		}
+		fprintf(stderr, "send_share error - try_retx_send failed\n");
+		return -1;
+	}
+
+	fd_offset = 0;
+	state = ST_ACTIVE;
+
+	//printf("INVIO COMPLETATO STATO ATTIVO OFFSET 0\n");
+	if (close(fd) < 0) {
+		perror("send_share_file error - close failed");
+		return -1;
+	}
+
+	return 0;
+
 }
 
 /*
@@ -180,6 +306,14 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 			fprintf(stderr, "udp_handler error - redirect_handler failed\n");
 			return -1;
 		}
+	} else if (!strncmp(recv_pck.cmd, CMD_FILE, CMD_STR_LEN)) {
+		if (file_list_handler(udp_sock, &addr, &recv_pck) < 0) {
+			fprintf(stderr, "udp_handler error - file_list_handler failed\n");
+			return -1;
+		}
+	//	print_file_table();
+		print_ip_table();
+
 	} else {
 		//comando non riconosciuto
 
@@ -250,6 +384,7 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 	return 0;
 }
 
+
 /*
  * Funzione che gestisce il comando promote.
  * Ritorna 0 in caso di successo e -1 in caso di errore.
@@ -266,6 +401,11 @@ int promote_handler(int udp_sock, const struct sockaddr_in *recv_addr, const str
 		init_superpeer(udp_sock, NULL, 0);
 		is_sp = 1;
 		run_threads(udp_sock, bs_addr, NULL);
+		struct sockaddr_in maddr;
+		share_file(conf.share_folder, ".karma.share");
+		get_local_addr(udp_sock, &maddr);
+		add_sp_file(&maddr);
+
 	} else {
 		if (state == ST_PROMOTE_RECV) {
 			return 0;
@@ -535,8 +675,6 @@ int error_handler(int udp_sock, const char *errstr, const struct sockaddr_in *bs
 int main (int argc,char *argv[]){
 	int udp_sock, ready;
 	int i; //lunghezza indirizzi ricevuti
-
-	struct config conf;
 
 	char str[MAXLINE];
 	int nread;

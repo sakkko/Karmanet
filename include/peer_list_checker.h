@@ -6,6 +6,7 @@
 #include "list.h"
 #include "peer_list.h"
 #include "thread_util.h"
+#include "hashtable.h"
 
 #define PL_CHECK_TIME 6
 

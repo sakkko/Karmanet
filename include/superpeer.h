@@ -7,6 +7,7 @@
 #include "request_list.h"
 #include "retx.h"
 #include "select_util.h"
+#include "hashtable.h"
 
 #define BACKLOG 10
 #define TCP_PORT 5193
@@ -39,6 +40,8 @@ int set_listen_socket(unsigned short port);
 int join_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate, struct peer_list_ch_info *plchinfo);
 
 int promote_peer(int udp_sock, struct peer_list_ch_info *plchinfo);
+
+int add_files(const struct sockaddr_in *peer_addr, const char *pck_data, int data_len);
 
 #endif
 

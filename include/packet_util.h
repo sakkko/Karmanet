@@ -13,7 +13,7 @@ struct packet {
 	unsigned short index;
 	short TTL;
 	unsigned short data_len;
-	char  data [1024];
+	char  data[1024];
 };
 
 char buf[MAX_PACKET_SIZE + 1];
