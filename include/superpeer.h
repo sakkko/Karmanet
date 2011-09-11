@@ -43,5 +43,9 @@ int promote_peer(int udp_sock, struct peer_list_ch_info *plchinfo);
 
 int add_files(const struct sockaddr_in *peer_addr, const char *pck_data, int data_len);
 
+int accept_conn(int tcp_listen);
+
+int close_conn(int sock);
+
 #endif
 

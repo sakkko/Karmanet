@@ -45,6 +45,8 @@
 
 #define MAX_BS_ERROR 5
 
+#define SHARE_FILE ".karma.share"
+
 pthread_mutex_t pipe_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int thread_pipe[2]; // usato per pipe	

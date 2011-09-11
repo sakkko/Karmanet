@@ -44,6 +44,8 @@ int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
  * Funzione di inizializzazione del superpeer.
  */
 int init_superpeer(int socksd, const struct sockaddr_in *sp_addr_list, int list_len) {
+	int i;
+
 	is_sp = 0;
 	free_sock = 0;
 	curr_p_count = 0;
@@ -53,6 +55,10 @@ int init_superpeer(int socksd, const struct sockaddr_in *sp_addr_list, int list_
 	if (set_listen_socket(get_local_port(socksd)) < 0) {
 		fprintf(stderr, "init_superpeer error - set_listen_socket failed\n");
 		return -1;
+	}
+
+	for (i = 0; i < MAX_TCP_SOCKET; i ++) {
+		tcp_sock[i] = -1;
 	}
 
 	if (sp_addr_list != NULL) {
@@ -134,7 +140,7 @@ int join_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate, stru
 		fprintf(stderr, "join_peer error - can't release lock: %s\n", strerror(rc));
 		return -1;
 	}
-	printf("aggiunto peer %s:%d\nrate: %ld\n", inet_ntoa(peer_addr->sin_addr), ntohs(peer_addr->sin_port), peer_rate);
+	printf("aggiunto peer %s:%d - rate: %ld\n", inet_ntoa(peer_addr->sin_addr), ntohs(peer_addr->sin_port), peer_rate);
 	printf("dimensione lista peer: %d\n", get_list_count(peer_list_head));
 
 	return 0;
@@ -144,7 +150,7 @@ int add_files(const struct sockaddr_in *peer_addr, const char *pck_data, int dat
 	int i, j;
 	char tmp[1024];
 
-	printf("%s\n", pck_data);
+//	printf("%s\n", pck_data);
 	j = 0;
 	for (i = 0; i < data_len; i ++) {
 		if (pck_data[i] != '\n') {
@@ -158,5 +164,58 @@ int add_files(const struct sockaddr_in *peer_addr, const char *pck_data, int dat
 	}
 
 	return 0;
+}
+
+int accept_conn(int tcp_listen) {
+	int i;
+
+	if (free_sock < MAX_TCP_SOCKET) {
+		for (i = 0; i < MAX_TCP_SOCKET; i ++) {
+			if (tcp_sock[i] == -1) {
+				if ((tcp_sock[i] = accept(tcp_listen, NULL, NULL)) < 0) {
+					perror("errore in accept");
+					return -1;
+				}
+				fd_add(tcp_sock[free_sock]);
+				free_sock ++;
+				break;
+			}
+		}
+
+		if (i == MAX_TCP_SOCKET) {
+			fprintf(stderr, "accept_conn error - no free socket found\n");
+			return -1;
+		}
+	} else {
+		fprintf(stderr, "accept_conn error - can't accept more connection\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+int close_conn(int sock) {
+	int i;
+
+	for (i = 0; i < MAX_TCP_SOCKET; i ++) {
+		if (tcp_sock[i] == sock) {
+			if (close(tcp_sock[i]) < 0) {
+				perror("close_conn error - close failed");
+				return -1;
+			}
+			fd_remove(tcp_sock[i]);
+			tcp_sock[i] = -1;
+			free_sock --;
+			break;
+		}
+	}
+
+	if (i == MAX_TCP_SOCKET) {
+		printf("close_conn error - no socket found\n");
+		return -1;
+	}
+
+	return 0;
+
 }
 
