@@ -420,10 +420,12 @@ int promote_handler(int udp_sock, const struct sockaddr_in *recv_addr, const str
 		init_superpeer(udp_sock, NULL, 0);
 		is_sp = 1;
 		run_threads(udp_sock, bs_addr, NULL);
-		struct sockaddr_in maddr;
+		
 		share_file(conf.share_folder, SHARE_FILE);
-		get_local_addr(udp_sock, &maddr);
-		add_sp_file(&maddr);
+		str2addr (&myaddr,recv_pck->data);
+		add_sp_file(&myaddr);
+		print_file_table();
+		print_ip_table();
 
 	} else {
 		if (state == ST_PROMOTE_RECV) {

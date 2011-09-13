@@ -140,7 +140,8 @@ int sp_join(int sockfd, const struct sockaddr_in *addr, const struct packet *pck
 	if (sp_list_head == NULL) {
 		printf("lista vuota inviato promote\n");
 		new_promote_packet(&promote, pck->index);
-
+		addr2str(promote.data, addr->sin_addr.s_addr, addr->sin_port);
+		promote.data_len = 6;	
 		if (send_packet(sockfd, addr, &promote) < 0) {
 			perror("errore in sendto");
 		}

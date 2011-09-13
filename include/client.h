@@ -59,6 +59,8 @@ int bserror;
 
 int fd_offset;
 
+struct sockaddr_in myaddr;
+
 struct config conf;
 
 struct sp_checker_info *sp_checker;
