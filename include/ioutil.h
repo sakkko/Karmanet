@@ -10,6 +10,8 @@
 #include <errno.h>
 #include <time.h>
 
+#define MAXLINE	1024
+
 int maxd;
 
 void add_fd(int fd, fd_set *fdset);

@@ -392,15 +392,16 @@ void print_file_table() {
 		//printf("\nCELLA NON VUOTA\n");
 
 		while (file_app != NULL) {
-			printf("\nFile name: %s\n", file_app->name);
+			printf("File name: %s\n", file_app->name);
 			addr_app = file_app->addr_list;
 
 			c = 1;
 			while (addr_app != NULL) {
-				printf("IP %d: %lu:%u\n", c, addr_app->ip, addr_app->port);
+				printf("IP %d: %lu:%u - ", c, addr_app->ip, addr_app->port);
 				addr_app = addr_app->next;
 				c ++;
 			}
+			printf("\n");
 			file_app = file_app->next;
 		}
 
@@ -429,10 +430,11 @@ void print_ip_table() {
 
 			c = 1;
 			while (file_info_app != NULL) {
-				printf("FILE %d: %s\n", c, file_info_app->file->name);
+				printf("FILE %d: %s - ", c, file_info_app->file->name);
 				file_info_app = file_info_app->next;
 				c ++;
 			}
+			printf("\n");
 			ip_node_app = ip_node_app->next;
 		}
 	}

@@ -162,7 +162,7 @@ int add_sp_file(const struct sockaddr_in *addr) {
 	}
 
 	while ((n = readline(fd, buff, 255)) > 0) {
-		if (*buff == '/') {
+		if (*buff == '#') {
 			continue;
 		}
 		buff[n - 1] = 0;
@@ -170,8 +170,8 @@ int add_sp_file(const struct sockaddr_in *addr) {
 		insert_file(buff, addr->sin_addr.s_addr, addr->sin_port);
 	}
 
-//	print_file_table();
-//	print_ip_table();
+	print_file_table();
+	print_ip_table();
 
 	printf("RC=%d\n", rc);
 
@@ -199,7 +199,7 @@ int send_share(int udp_sock, const struct sockaddr_in *addr) {
 
 	lseek(fd, fd_offset, SEEK_SET);
 	while ((n = readline(fd, buf, 1024)) > 0) {
-		if (*buf == '/') {
+		if (*buf == '#') {
 			continue;
 		}
 		if (count + n < 1024) {
@@ -424,8 +424,8 @@ int promote_handler(int udp_sock, const struct sockaddr_in *recv_addr, const str
 		share_file(conf.share_folder, SHARE_FILE);
 		str2addr (&myaddr,recv_pck->data);
 		add_sp_file(&myaddr);
-		print_file_table();
-		print_ip_table();
+	//	print_file_table();
+	//	print_ip_table();
 
 	} else {
 		if (state == ST_PROMOTE_RECV) {

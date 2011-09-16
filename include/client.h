@@ -26,7 +26,6 @@
 #include "superpeer.h"
 #include "lista_file.h"
 
-#define MAXLINE	1024
 
 #define ST_JOINBS_SENT 1
 #define ST_JOINSP_SENT 2
