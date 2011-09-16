@@ -28,5 +28,7 @@ unsigned short btos(const char *str);
 
 unsigned short get_rand();
 
+void get_dirpath(char *destpath, const char *fullpath);
+
 #endif
 

@@ -698,6 +698,7 @@ int main (int argc,char *argv[]){
 	int i; //lunghezza indirizzi ricevuti
 
 	char str[MAXLINE];
+	char cwd[MAXLINE];
 	int nread;
 
 	struct sockaddr_in addr;
@@ -708,7 +709,17 @@ int main (int argc,char *argv[]){
 		fprintf(stderr, "Utilizzo: %s <indirizzo IP server>\n", argv[0]);
 		return 1;
 	}
-	
+
+
+	get_dirpath(cwd, argv[0]);
+	if (chdir(cwd) < 0) {
+		perror("Can't change current workink directory");
+		return 1;
+	}
+	memset(cwd, 0, MAXLINE);
+	getcwd(cwd, MAXLINE);
+	printf("%s\n", cwd);
+
 	if ((udp_sock = udp_socket()) < 0) {
 		perror("init error - can't initialize socket");
 		return -1;

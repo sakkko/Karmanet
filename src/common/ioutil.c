@@ -82,3 +82,19 @@ unsigned short get_rand() {
 	return (unsigned short)rand();
 }
 
+
+void get_dirpath(char *destpath, const char *fullpath) {
+	int i, len;
+	len = strlen(fullpath);
+
+	for (i = len - 1; i >= 0; i --) {
+		if (fullpath[i] == '/') {
+			break;
+		}
+	}
+
+	strncpy(destpath, fullpath, i);
+	destpath[i] = 0;
+}
+
+

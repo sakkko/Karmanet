@@ -3,7 +3,7 @@
 
 #include "ioutil.h"
 
-#define CONFIG_FILE "karma.conf"
+#define CONFIG_FILE "../karma.conf"
 
 #define UDP_PORT_FLAG "udp_port="
 #define TCP_PORT_FLAG "tcp_port="
