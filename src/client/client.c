@@ -30,6 +30,23 @@ void sighand(int signo) {
 }
 
 /*
+*	Funzione che riconosce ed esegue i comandi dati da tastiera
+*/
+
+int command_handler(char* str, int udp_sock){
+	printf("COMMAND HANDLER\n");
+	struct packet pck; 
+	if(!strncmp(str,"leave",5)){
+		new_leave_packet(&pck,get_index());
+		retx_send(udp_sock, &pinger.addr_to_ping ,&pck);
+		state = ST_LEAVE_SENT;		
+	}
+	else if(!strncmp(str,"whohas ",7)){
+	
+	}
+	return 0;
+}
+/*
 * Funzione di inizializzazione generale.
 */
 int init(int udp_sock) {
@@ -126,6 +143,9 @@ int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct socka
 	} else if (state == ST_FILELIST_SENT) {
 		retx_stop(recv_pck->index);	
 		send_share(udp_sock, addr);
+	} else if (state == ST_LEAVE_SENT) {
+		retx_stop(recv_pck->index);
+		exit(0);
 	} else {
 		retx_stop(recv_pck->index);	
 	}
@@ -252,7 +272,7 @@ int send_share(int udp_sock, const struct sockaddr_in *addr) {
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
 int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
-	struct packet recv_pck;
+	struct packet recv_pck, tmp_pck;
 	struct sockaddr_in addr;
 	int len = sizeof(struct sockaddr_in); 
 	
@@ -284,7 +304,15 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 			fprintf(stderr, "udp_handler error - ping_handler failed\n");
 		}
 	} else if (!strncmp(recv_pck.cmd, CMD_LEAVE, CMD_STR_LEN)) { 
-		//rimuovi addr
+		printf("Elimino peer %s\n", inet_ntoa(addr.sin_addr));
+		remove_peer(&addr);
+		remove_all_file(addr.sin_addr.s_addr);
+		new_ack_packet(&tmp_pck, recv_pck.index);
+
+		if (mutex_send(udp_sock, &addr, &tmp_pck) < 0) {
+			fprintf(stderr, "leave_handler error - mutex_send failed\n");
+			return -1;
+		}		//rimuovi addr
 	} else if (!strncmp(recv_pck.cmd, CMD_WHOHAS, CMD_STR_LEN)) { 
 		;
 	} else if (!strncmp(recv_pck.cmd, CMD_PONG, CMD_STR_LEN)) { 
@@ -688,8 +716,9 @@ int error_handler(int udp_sock, const char *errstr, const struct sockaddr_in *bs
 			printf("Promote non più necessario, rinuncio\n");
 			state = ST_ACTIVE;
 		}
+	} else if (!strncmp(errstr, CMD_LEAVE, CMD_STR_LEN)) {
+		exit(0);
 	}
-
 	return 0;
 }
 
@@ -773,7 +802,11 @@ int main (int argc,char *argv[]){
 				fprintf(stderr, "udp_handler failed\n");
 			}
 		} else if (fd_ready(fileno(stdin))) {
-			;
+			printf("descrittore keyboard attivo\n");
+			i=readline(fileno(stdin), str, MAXLINE);
+			
+			printf("hai inserito %s\n",str);
+			command_handler(str, udp_sock);
 		} else if (fd_ready(tcp_listen)) {
 			printf("descrittore listen attivo\n");
 			if (accept_conn(tcp_listen) < 0) {

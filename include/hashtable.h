@@ -11,7 +11,7 @@
 
 #define HASH_PRIME_NUMBER_FILE 30011
 
-#define HASH_PRIME_NUMBER_PEER 2110
+#define HASH_PRIME_NUMBER_PEER 211
 
 struct addr_node {
 	unsigned long ip;

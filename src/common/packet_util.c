@@ -55,6 +55,10 @@ int new_promote_packet(struct packet *pck, unsigned short index) {
 	return new_packet(pck, CMD_PROMOTE, index, NULL, 0, 1);
 }
 
+int new_leave_packet(struct packet *pck, unsigned short index) {
+	return new_packet(pck, CMD_LEAVE, index, NULL, 0, 1);
+}
+
 int new_register_packet(struct packet *pck, unsigned short index) {
 	return new_packet(pck, CMD_REGISTER, index, NULL, 0, 1);
 }

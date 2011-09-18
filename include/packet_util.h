@@ -40,6 +40,8 @@ int new_pong_packet(struct packet *pck, unsigned short index);
 
 int new_promote_packet(struct packet *pck, unsigned short index);
 
+int new_leave_packet(struct packet *pck, unsigned short index);
+
 int new_redirect_packet(struct packet *pck, unsigned short index, struct sockaddr_in *child);
 
 int new_register_packet(struct packet *pck, unsigned short index);
