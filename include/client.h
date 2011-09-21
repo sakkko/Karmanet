@@ -107,5 +107,7 @@ int add_sp_file(const struct sockaddr_in *addr);
 
 int send_share(int udp_sock, const struct sockaddr_in *addr);
 
+int leave_handler(int udp_sock, const struct packet *recv_pck, const struct sockaddr_in *bs_addr, const struct sockaddr_in *addr);
+
 #endif
 

@@ -39,7 +39,7 @@ int command_handler(char* str, int udp_sock){
 	if(!strncmp(str,"leave",5)){
 		new_leave_packet(&pck,get_index());
 		retx_send(udp_sock, &pinger.addr_to_ping ,&pck);
-		state = ST_LEAVE_SENT;		
+		state = ST_LEAVE_SENT;
 	}
 	else if(!strncmp(str,"whohas ",7)){
 	
@@ -145,6 +145,21 @@ int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct socka
 		send_share(udp_sock, addr);
 	} else if (state == ST_LEAVE_SENT) {
 		retx_stop(recv_pck->index);
+		if (is_sp) {
+			struct node *tmp_node;
+			struct packet tmp_pck;
+
+			tmp_node = peer_list_head;
+
+			while (tmp_node != NULL) {
+				//ret = (struct spaddr_node *)tmp_node->data;
+				new_leave_packet(&tmp_pck, get_index());
+				if (mutex_send(udp_sock, &((struct peer_node *)tmp_node->data)->peer_addr, &tmp_pck) < 0) {
+					fprintf(stderr, "ack_handler error - mutex_send failed\n");
+				}
+				tmp_node = tmp_node->next;
+			}
+		}
 		exit(0);
 	} else {
 		retx_stop(recv_pck->index);	
@@ -267,12 +282,42 @@ int send_share(int udp_sock, const struct sockaddr_in *addr) {
 
 }
 
+int leave_handler(int udp_sock, const struct packet *recv_pck, const struct sockaddr_in *bs_addr, const struct sockaddr_in *addr) {
+	struct packet tmp_pck;
+
+	if (is_sp) {
+		printf("Elimino peer %s\n", inet_ntoa(addr->sin_addr));
+		remove_peer(addr);
+		remove_all_file(addr->sin_addr.s_addr);
+		new_ack_packet(&tmp_pck, recv_pck->index);
+
+		if (mutex_send(udp_sock, addr, &tmp_pck) < 0) {
+			fprintf(stderr, "leave_handler error - mutex_send failed\n");
+			return -1;
+		}		
+	} else {
+		if (addrcmp(&pinger.addr_to_ping, addr)) {
+			stop_threads(0);
+			new_join_packet(&tmp_pck, get_index());
+			if (retx_send(udp_sock, bs_addr, &tmp_pck) < 0) {
+				fprintf(stderr, "leave_handler error - Can't send join to bootstrap\n");
+				return 1;
+			}
+
+			state = ST_JOINBS_SENT;
+		}
+	}
+
+	return 0;
+
+}
+
 /*
  * Funzione che gestisce tutti i messaggi ricevuti sulla socket udp.
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
 int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
-	struct packet recv_pck, tmp_pck;
+	struct packet recv_pck;
 	struct sockaddr_in addr;
 	int len = sizeof(struct sockaddr_in); 
 	
@@ -304,15 +349,10 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 			fprintf(stderr, "udp_handler error - ping_handler failed\n");
 		}
 	} else if (!strncmp(recv_pck.cmd, CMD_LEAVE, CMD_STR_LEN)) { 
-		printf("Elimino peer %s\n", inet_ntoa(addr.sin_addr));
-		remove_peer(&addr);
-		remove_all_file(addr.sin_addr.s_addr);
-		new_ack_packet(&tmp_pck, recv_pck.index);
-
-		if (mutex_send(udp_sock, &addr, &tmp_pck) < 0) {
-			fprintf(stderr, "leave_handler error - mutex_send failed\n");
+		if (leave_handler(udp_sock, &recv_pck, bs_addr, &addr) < 0) {
+			fprintf(stderr, "udp_handler error - leave_handler failed\n");
 			return -1;
-		}		//rimuovi addr
+		}
 	} else if (!strncmp(recv_pck.cmd, CMD_WHOHAS, CMD_STR_LEN)) { 
 		;
 	} else if (!strncmp(recv_pck.cmd, CMD_PONG, CMD_STR_LEN)) { 
