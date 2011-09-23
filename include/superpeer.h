@@ -28,6 +28,7 @@ short curr_child_redirect; //per contare quanti redirect ho inviato su mio figli
 
 struct sockaddr_in child_addr; //ultimo promote inviato
 
+struct sockaddr_in myaddr;
 
 int sp_init();
 

@@ -13,7 +13,8 @@
 #define CMD_WHOHAS "WHO"
 #define CMD_GET "GET"
 
-#define CMD_FILE "FIL"
+#define CMD_ADD_FILE "ADF"
+#define CMD_UPDATE_FILE "UPF"
 
 #define CMD_ACK "ACK"
 #define CMD_ERR "ERR"

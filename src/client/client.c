@@ -32,7 +32,6 @@ void sighand(int signo) {
 /*
 *	Funzione che riconosce ed esegue i comandi dati da tastiera
 */
-
 int command_handler(char* str, int udp_sock){
 	printf("COMMAND HANDLER\n");
 	struct packet pck; 
@@ -40,10 +39,23 @@ int command_handler(char* str, int udp_sock){
 		new_leave_packet(&pck,get_index());
 		retx_send(udp_sock, &pinger.addr_to_ping ,&pck);
 		state = ST_LEAVE_SENT;
-	}
-	else if(!strncmp(str,"whohas ",7)){
+	} else if (!strncmp(str,"whohas ",7)){
+
 	
+	} else if (!strncmp(str, "help", 4)) {
+		write_help();
+	} else if (!strncmp(str, "update", 6)) {
+		if (is_sp) {
+			remove_all_file(myaddr.sin_addr.s_addr);
+			share_file(conf.share_folder, SHARE_FILE);
+			add_sp_file(&myaddr);
+		} else {
+			share_file(conf.share_folder, SHARE_FILE);
+			fd_offset = 0;
+			send_share(udp_sock, &pinger.addr_to_ping);
+		}
 	}
+
 	return 0;
 }
 /*
@@ -111,12 +123,29 @@ void pong_handler() {
 	}
 }
 
+/**
+ * Invia leave a tutti i peer connessi.
+ */
+void send_leave(int udp_sock) {
+	struct node *tmp_node;
+	struct packet tmp_pck;
+
+	tmp_node = peer_list_head;
+
+	while (tmp_node != NULL) {
+		new_leave_packet(&tmp_pck, get_index());
+		if (mutex_send(udp_sock, &((struct peer_node *)tmp_node->data)->peer_addr, &tmp_pck) < 0) {
+			fprintf(stderr, "ack_handler error - mutex_send failed\n");
+		}
+		tmp_node = tmp_node->next;
+	}
+}
+
 /*
  * Funzione che gestisce il comando ack.
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
 int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct sockaddr_in *bs_addr, const struct packet *recv_pck) {
-	struct sockaddr_in maddr;
 	if (state == ST_JOINSP_SENT) {
 		retx_stop(recv_pck->index);
 		run_threads(udp_sock, NULL, addr);	
@@ -138,27 +167,14 @@ int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct socka
 		is_sp = 1;
 		run_threads(udp_sock, bs_addr, NULL);
 		share_file(conf.share_folder, SHARE_FILE);
-		get_local_addr(udp_sock, &maddr);
-		add_sp_file(&maddr);
+		add_sp_file(&myaddr);
 	} else if (state == ST_FILELIST_SENT) {
 		retx_stop(recv_pck->index);	
 		send_share(udp_sock, addr);
 	} else if (state == ST_LEAVE_SENT) {
 		retx_stop(recv_pck->index);
 		if (is_sp) {
-			struct node *tmp_node;
-			struct packet tmp_pck;
-
-			tmp_node = peer_list_head;
-
-			while (tmp_node != NULL) {
-				//ret = (struct spaddr_node *)tmp_node->data;
-				new_leave_packet(&tmp_pck, get_index());
-				if (mutex_send(udp_sock, &((struct peer_node *)tmp_node->data)->peer_addr, &tmp_pck) < 0) {
-					fprintf(stderr, "ack_handler error - mutex_send failed\n");
-				}
-				tmp_node = tmp_node->next;
-			}
+			send_leave(udp_sock);
 		}
 		exit(0);
 	} else {
@@ -241,7 +257,11 @@ int send_share(int udp_sock, const struct sockaddr_in *addr) {
 			strcpy(tmp + count, buf);
 			count += n;
 		} else {
-			new_packet(&pck, CMD_FILE, get_index(), tmp, strlen(tmp), 1);
+			if (fd_offset == 0) {
+				new_packet(&pck, CMD_UPDATE_FILE, get_index(), tmp, strlen(tmp), 1);
+			} else {
+				new_packet(&pck, CMD_ADD_FILE, get_index(), tmp, strlen(tmp), 1);
+			}
 			if ((rc = try_retx_send(udp_sock, addr, &pck)) < 0) {
 				close(fd);
 				if (rc == -2) {
@@ -258,7 +278,11 @@ int send_share(int udp_sock, const struct sockaddr_in *addr) {
 	}
 
 
-	new_packet(&pck, CMD_FILE, get_index(), tmp, strlen(tmp), 1);
+	if (fd_offset == 0) {
+		new_packet(&pck, CMD_UPDATE_FILE, get_index(), tmp, strlen(tmp), 1);
+	} else {
+		new_packet(&pck, CMD_ADD_FILE, get_index(), tmp, strlen(tmp), 1);
+	}
 	if ((rc = try_retx_send(udp_sock, addr, &pck)) < 0) {
 		close(fd);
 		if (rc == -2) {
@@ -309,6 +333,21 @@ int leave_handler(int udp_sock, const struct packet *recv_pck, const struct sock
 	}
 
 	return 0;
+
+}
+
+void help(char *progname) {
+	usage(progname);
+	write_help();
+}
+
+void usage(char *progname) {
+	printf("Utilizzo: %s <indirizzo IP server>\n", progname);
+	printf("Utilizzare: %s --help per maggiori informazioni\n", progname);
+}
+
+void write_help() {
+	printf("Lista comandi:\n-whohas: effettua la ricerca\n-leave: chiude il programma\n-get: scarica un file\n-upload: invia la lista dei file condivisi\n");
 
 }
 
@@ -372,14 +411,19 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 			fprintf(stderr, "udp_handler error - redirect_handler failed\n");
 			return -1;
 		}
-	} else if (!strncmp(recv_pck.cmd, CMD_FILE, CMD_STR_LEN)) {
+	} else if (!strncmp(recv_pck.cmd, CMD_UPDATE_FILE, CMD_STR_LEN)) {
+		remove_all_file(addr.sin_addr.s_addr);
 		if (file_list_handler(udp_sock, &addr, &recv_pck) < 0) {
 			fprintf(stderr, "udp_handler error - file_list_handler failed\n");
 			return -1;
 		}
 	//	print_file_table();
 //		print_ip_table();
-
+	} else if (!strncmp(recv_pck.cmd, CMD_ADD_FILE, CMD_STR_LEN)) {
+		if (file_list_handler(udp_sock, &addr, &recv_pck) < 0) {
+			fprintf(stderr, "udp_handler error - file_list_handler failed\n");
+			return -1;
+		}
 	} else {
 		//comando non riconosciuto
 
@@ -490,11 +534,8 @@ int promote_handler(int udp_sock, const struct sockaddr_in *recv_addr, const str
 		run_threads(udp_sock, bs_addr, NULL);
 		
 		share_file(conf.share_folder, SHARE_FILE);
-		str2addr (&myaddr,recv_pck->data);
+		str2addr (&myaddr, recv_pck->data);
 		add_sp_file(&myaddr);
-	//	print_file_table();
-	//	print_ip_table();
-
 	} else {
 		if (state == ST_PROMOTE_RECV) {
 			return 0;
@@ -775,10 +816,14 @@ int main (int argc,char *argv[]){
 
 	// controlla numero degli argomenti
 	if (argc != 2) { 
-		fprintf(stderr, "Utilizzo: %s <indirizzo IP server>\n", argv[0]);
+		usage(argv[0]);
 		return 1;
 	}
 
+	if (!strcmp("--help", argv[1])) {
+		help(argv[0]);
+		return 0;
+	}
 
 	get_dirpath(cwd, argv[0]);
 	if (chdir(cwd) < 0) {
@@ -843,9 +888,9 @@ int main (int argc,char *argv[]){
 			}
 		} else if (fd_ready(fileno(stdin))) {
 			printf("descrittore keyboard attivo\n");
-			i=readline(fileno(stdin), str, MAXLINE);
+			i = readline(fileno(stdin), str, MAXLINE);
 			
-			printf("hai inserito %s\n",str);
+			printf("hai inserito %s\n", str);
 			command_handler(str, udp_sock);
 		} else if (fd_ready(tcp_listen)) {
 			printf("descrittore listen attivo\n");
