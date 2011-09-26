@@ -32,21 +32,21 @@ void sighand(int signo) {
 /*
 *	Funzione che riconosce ed esegue i comandi dati da tastiera
 */
-int command_handler(char* str, int udp_sock){
+int keyboard_handler(char* str, int udp_sock){
 	printf("COMMAND HANDLER\n");
 	struct packet pck; 
+
 	if(!strncmp(str,"leave",5)){
 		new_leave_packet(&pck,get_index());
 		retx_send(udp_sock, &pinger.addr_to_ping ,&pck);
 		state = ST_LEAVE_SENT;
 	} else if (!strncmp(str,"whohas ",7)){
-
-	
+		
 	} else if (!strncmp(str, "help", 4)) {
 		write_help();
 	} else if (!strncmp(str, "update", 6)) {
 		if (is_sp) {
-			remove_all_file(myaddr.sin_addr.s_addr);
+			remove_all_file(myaddr.sin_addr.s_addr, myaddr.sin_port);
 			share_file(conf.share_folder, SHARE_FILE);
 			add_sp_file(&myaddr);
 		} else {
@@ -54,10 +54,22 @@ int command_handler(char* str, int udp_sock){
 			fd_offset = 0;
 			send_share(udp_sock, &pinger.addr_to_ping);
 		}
+	} else if (!strncmp(str, "print_files", 11)) {
+		if (is_sp) {
+			print_file_table();
+		} else {
+			printf("Non sei superpeer\n");
+		}
+	} else if (!strncmp(str, "print_ips", 9)) {
+		if (is_sp) {
+			print_ip_table();
+		} else {
+			printf("Non sei superpeer\n");
+		}
 	}
-
 	return 0;
 }
+
 /*
 * Funzione di inizializzazione generale.
 */
@@ -88,7 +100,6 @@ int init(int udp_sock) {
 		perror("init error - sigaction failed");
 		return 1;
 	}
-
 	
 	return 0;
 }
@@ -312,7 +323,7 @@ int leave_handler(int udp_sock, const struct packet *recv_pck, const struct sock
 	if (is_sp) {
 		printf("Elimino peer %s\n", inet_ntoa(addr->sin_addr));
 		remove_peer(addr);
-		remove_all_file(addr->sin_addr.s_addr);
+		remove_all_file(addr->sin_addr.s_addr, addr->sin_port);
 		new_ack_packet(&tmp_pck, recv_pck->index);
 
 		if (mutex_send(udp_sock, addr, &tmp_pck) < 0) {
@@ -412,7 +423,7 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 			return -1;
 		}
 	} else if (!strncmp(recv_pck.cmd, CMD_UPDATE_FILE, CMD_STR_LEN)) {
-		remove_all_file(addr.sin_addr.s_addr);
+		remove_all_file(addr.sin_addr.s_addr, addr.sin_port);
 		if (file_list_handler(udp_sock, &addr, &recv_pck) < 0) {
 			fprintf(stderr, "udp_handler error - file_list_handler failed\n");
 			return -1;
@@ -891,7 +902,7 @@ int main (int argc,char *argv[]){
 			i = readline(fileno(stdin), str, MAXLINE);
 			
 			printf("hai inserito %s\n", str);
-			command_handler(str, udp_sock);
+			keyboard_handler(str, udp_sock);
 		} else if (fd_ready(tcp_listen)) {
 			printf("descrittore listen attivo\n");
 			if (accept_conn(tcp_listen) < 0) {
@@ -907,7 +918,6 @@ int main (int argc,char *argv[]){
 			printf("pipe: %s\n", str);
 			if (!strncmp(str, "RST", 3)) {
 				stop_threads(1);
-
 				new_join_packet(&tmp_pck, get_index());
 				if (retx_send(udp_sock, &addr, &tmp_pck) < 0) {
 					fprintf(stderr, "Can't send join to bootstrap\n");
@@ -917,7 +927,7 @@ int main (int argc,char *argv[]){
 				state = ST_JOINBS_SENT;
 			} else if (!strncmp(str, "ERR", 3)) {
 				//si è verificato un errore
-				printf("SI E' VERIFICATO UN ERRORE\n");
+			//	printf("SI E' VERIFICATO UN ERRORE\n");
 				if (error_handler(udp_sock, str + 4, &addr) < 0) {
 					fprintf(stderr, "Can't handle error\n");
 					return 1;

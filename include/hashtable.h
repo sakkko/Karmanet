@@ -76,7 +76,7 @@ void print_file_table();
 
 void print_ip_table();
 
-int remove_all_file (unsigned long ip);
+int remove_all_file(unsigned long ip, unsigned short port);
 
 struct addr_node *get(char *file_name);
 

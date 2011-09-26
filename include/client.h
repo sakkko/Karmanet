@@ -116,5 +116,7 @@ void help();
 
 void usage();
 
+int keyboard_handler(char* str, int udp_sock);
+
 #endif
 

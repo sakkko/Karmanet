@@ -312,10 +312,11 @@ int remove_file_info(struct file_info *fileinfo, struct ip_node *ipnode) {
 	return 0;
 }
 
-int remove_all_file (unsigned long ip){
+int remove_all_file(unsigned long ip, unsigned short port){
 	struct ip_node *entry;
 	struct file_info *file_info_app;
-	struct addr_node *addr_app;
+	struct file_info *tmp;
+//	struct addr_node *addr_app;
 	int key;
 
 	key = iphash(ip);
@@ -330,14 +331,26 @@ int remove_all_file (unsigned long ip){
 		return 0;
 	}
 
+	
 	file_info_app = entry->file_list;
+
+	while (file_info_app != NULL) {
+		tmp = file_info_app;
+		if (file_info_app->addr->port == port) {
+			remove_addr_node(file_info_app->addr, file_info_app->file);
+			remove_file_info(file_info_app, entry);
+		}
+		file_info_app = tmp->next;
+	}	
+
+/*
 	addr_app =  entry->file_list->addr;
 	//file_info_app = file_info_app->next;
 	remove_addr_node(entry->file_list->addr, entry->file_list->file);
-	while (remove_file_info(entry->file_list, entry) != 1){
+	while (remove_file_info(entry->file_list, entry) != 1) {
 		remove_addr_node(entry->file_list->addr, entry->file_list->file);
 	}
-
+*/
 	return 0;
 }
 

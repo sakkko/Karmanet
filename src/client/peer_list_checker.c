@@ -57,7 +57,8 @@ void peer_list_checker_func(void *args) {
 			to_remove = tmp_node;
 			tmp_node = tmp_node->next;
 			if (((struct peer_node *)to_remove->data)->flag == 0) {
-				remove_all_file(((struct peer_node *)to_remove->data)->peer_addr.sin_addr.s_addr);
+				remove_all_file(((struct peer_node *)to_remove->data)->peer_addr.sin_addr.s_addr,
+						((struct peer_node *)to_remove->data)->peer_addr.sin_port);
 				remove_peer_node(to_remove);
 				printf("RIMOSSO PEER NON ATTIVO\n");
 				print_file_table();
