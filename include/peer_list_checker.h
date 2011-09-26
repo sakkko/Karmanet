@@ -17,7 +17,7 @@ struct peer_list_ch_info {
 
 int peer_list_checker_run(struct peer_list_ch_info *plchinfo);
 
-int peer_list_checker_stop();
+int peer_list_checker_stop(struct peer_list_ch_info *plchinfo);
 
 void peer_list_checker_func(void *args);
 
