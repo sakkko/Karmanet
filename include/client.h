@@ -17,7 +17,6 @@
 #include "peerrate.h"
 #include "peer_list.h"
 #include "pinger.h"
-#include "request_list.h"
 #include "packet_util.h"
 #include "retx.h"
 #include "peer_list_checker.h"

@@ -12,12 +12,12 @@ struct request_node {
 	};
 
 
-struct node *request_fifo_tail;
+struct request_node *request_fifo_tail;
 
 #define DEFAULT_TTL 5;
 
 void insert_request(unsigned short id, unsigned long ip);
 
-void remove_cascade_request(const struct request_node *to_remove);
+void remove_cascade_request(struct request_node *to_remove);
 
 #endif

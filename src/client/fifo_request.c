@@ -28,17 +28,17 @@ void insert_request(unsigned short id, unsigned long ip){
 /*
 la funzione elimina in cascata tutti i nodi a partire dal nodo di ingresso 
 */	
-void remove_cascade_request(const struct request_node *to_remove){
-					
+void remove_cascade_request(struct request_node *to_remove){
+
 	if(to_remove == NULL)
 		return;
-	
+
 	struct request_node *iterator = to_remove->next;
-	
+
 	free(to_remove);
 	to_remove = NULL;
-	
+
 	return(remove_cascade_request(iterator));		
-	
-	}
+
+}
 

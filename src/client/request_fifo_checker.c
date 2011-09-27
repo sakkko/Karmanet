@@ -56,7 +56,7 @@ void request_fifo_checker_func(void *args) {
 		if(tmp_node != NULL){
 			if (tmp_node->ttl == 0) {
 					remove_cascade_request(tmp_node);
-					tmp_node->next == NULL;
+					tmp_node->next = NULL;
 			} else {
 					tmp_node->ttl --;	
 			}
@@ -65,7 +65,7 @@ void request_fifo_checker_func(void *args) {
 				to_remove = tmp_node->next;		
 				if (to_remove->ttl == 0) {
 					remove_cascade_request(to_remove);
-					tmp_node->next == NULL;
+					tmp_node->next = NULL;
 				} else {
 					to_remove->ttl --;	
 				}

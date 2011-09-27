@@ -4,7 +4,6 @@
 #include "ioutil.h"
 #include "packet_util.h"
 #include "peer_list_checker.h"
-#include "request_list.h"
 #include "retx.h"
 #include "select_util.h"
 #include "hashtable.h"
