@@ -15,6 +15,8 @@ struct config {
 	char share_folder[256];
 };
 
+struct config conf;
+
 int read_config(struct config *conf);
 
 #endif

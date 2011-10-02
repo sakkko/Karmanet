@@ -58,8 +58,6 @@ int bserror;
 int fd_offset;
 
 
-struct config conf;
-
 struct sp_checker_info *sp_checker;
 struct peer_list_ch_info *peer_list_checker;
 struct pinger_info pinger;

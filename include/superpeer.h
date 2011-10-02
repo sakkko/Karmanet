@@ -7,6 +7,7 @@
 #include "retx.h"
 #include "select_util.h"
 #include "hashtable.h"
+#include "config.h"
 
 #define BACKLOG 10
 #define TCP_PORT 5193
@@ -33,7 +34,7 @@ int sp_init();
 
 int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len);
 
-int init_superpeer(int socksd, const struct sockaddr_in *sp_addr_list, int list_len);
+int init_superpeer(const struct sockaddr_in *sp_addr_list, int list_len);
  
 int set_listen_socket(unsigned short port);
 

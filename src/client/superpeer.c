@@ -48,9 +48,8 @@ int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
 /*
  * Funzione di inizializzazione del superpeer.
  */
-int init_superpeer(int socksd, const struct sockaddr_in *sp_addr_list, int list_len) {
+int init_superpeer(const struct sockaddr_in *sp_addr_list, int list_len) {
 	int i;
-	int local_port;
 
 	is_sp = 0;
 	free_sock = 0;
@@ -58,8 +57,7 @@ int init_superpeer(int socksd, const struct sockaddr_in *sp_addr_list, int list_
 	have_child = 0; 
 	curr_child_redirect = 0; 
 	//inizializzo socket di ascolto
-	local_port = get_local_port(socksd);
-	if (set_listen_socket(local_port) < 0) {
+	if (set_listen_socket(conf.udp_port) < 0) {
 		fprintf(stderr, "init_superpeer error - set_listen_socket failed\n");
 		return -1;
 	}
@@ -75,7 +73,7 @@ int init_superpeer(int socksd, const struct sockaddr_in *sp_addr_list, int list_
 			fprintf(stderr, "init_superpeer error - join_overlay failed\n");
 			return -1;
 		}
-		myaddr.sin_port = local_port;
+		myaddr.sin_port = conf.udp_port;
 		printf("MIO INDIRIZZO: %s:%d\n", inet_ntoa(myaddr.sin_addr), ntohs(myaddr.sin_port));
 	}
 

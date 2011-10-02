@@ -174,11 +174,15 @@ int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct socka
 		state = ST_ACTIVE;
 	} else if (state == ST_REGISTER_SENT) {
 		retx_stop(recv_pck->index);	
+		struct packet pck;
+		new_leave_packet(&pck, get_index());
+		retx_send(udp_sock, &pinger.addr_to_ping ,&pck);
 		stop_threads(0);
 		is_sp = 1;
 		run_threads(udp_sock, bs_addr, NULL);
 		share_file(conf.share_folder, SHARE_FILE);
 		add_sp_file(&myaddr);
+		state = ST_ACTIVE;
 	} else if (state == ST_FILELIST_SENT) {
 		retx_stop(recv_pck->index);	
 		send_share(udp_sock, addr);
@@ -232,9 +236,10 @@ int add_sp_file(const struct sockaddr_in *addr) {
 		insert_file(buff, addr->sin_addr.s_addr, addr->sin_port);
 	}
 
+	/*
 	print_file_table();
 	print_ip_table();
-
+*/
 	printf("RC=%d\n", rc);
 
 	if (close(fd) < 0) {
@@ -511,7 +516,7 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 		bserror = 0;
 		addr_list_len = recv_pck->data_len / 6;
 		addr_list = str_to_addr(recv_pck->data, addr_list_len);
-		init_superpeer(udp_sock, addr_list, recv_pck->data_len / 6);
+		init_superpeer(addr_list, recv_pck->data_len / 6);
 		free(addr_list);
 		addr_list = NULL;
 		new_register_packet(&send_pck, get_index());
@@ -540,7 +545,7 @@ int promote_handler(int udp_sock, const struct sockaddr_in *recv_addr, const str
 		state = ST_ACTIVE;
 		free(addr_list);
 		addr_list = NULL;
-		init_superpeer(udp_sock, NULL, 0);
+		init_superpeer(NULL, 0);
 		is_sp = 1;
 		run_threads(udp_sock, bs_addr, NULL);
 		
