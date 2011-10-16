@@ -157,17 +157,33 @@ int join_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate, stru
 int add_files(const struct sockaddr_in *peer_addr, const char *pck_data, int data_len) {
 	int i, j;
 	char tmp[1024];
+	unsigned char md5[MD5_DIGEST_LENGTH];
+	char op;
 
-//	printf("%s\n", pck_data);
 	j = 0;
 	for (i = 0; i < data_len; i ++) {
-		if (pck_data[i] != '\n') {
-			tmp[j] = pck_data[i];
-			j ++;
-		} else {
-			tmp[j] = 0;
-			j = 0;
-			insert_file(tmp, peer_addr->sin_addr.s_addr, peer_addr->sin_port);
+		if (pck_data[i] != '+' && pck_data[i] != '-') {
+			fprintf(stderr, "add_files error - bad packet format\n");
+			return -1;
+		}
+		op = pck_data[i];
+		memcpy(md5, pck_data + i + 1, MD5_DIGEST_LENGTH);
+		
+		for (i += MD5_DIGEST_LENGTH + 1 ; i < data_len; i ++) {
+			if (pck_data[i] != '\n') {
+				tmp[j] = pck_data[i];
+				j ++;
+			} else {
+				tmp[j] = 0;
+				j = 0;
+				if (op == '+') {
+					insert_file(tmp, md5, peer_addr->sin_addr.s_addr, peer_addr->sin_port);	
+				} else {
+					remove_file(peer_addr->sin_addr.s_addr, peer_addr->sin_port, tmp, md5);
+				}
+
+				break;
+			}
 		}
 	}
 

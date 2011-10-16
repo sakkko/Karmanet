@@ -10,7 +10,7 @@
 #include "retx.h"
 #include "thread_util.h"
 
-#define TIME_TO_PING  2
+#define TIME_TO_PING 2 
 
 struct pinger_info {
 	struct th_info thinfo;

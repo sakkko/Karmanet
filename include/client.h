@@ -23,7 +23,7 @@
 #include "sp_checker.h"
 #include "select_util.h"
 #include "superpeer.h"
-#include "lista_file.h"
+#include "shared.h"
 
 
 #define ST_JOINBS_SENT 1
@@ -42,8 +42,6 @@
 #define MAX_REDIRECT_COUNT 2 //numero massimo di redirect
 
 #define MAX_BS_ERROR 5
-
-#define SHARE_FILE "../.karma.share"
 
 pthread_mutex_t pipe_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -88,6 +86,8 @@ int ping_handler(int udp_sock, const struct sockaddr_in *addr, unsigned short in
 int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct sockaddr_in *bs_addr, const struct packet *recv_pck);
 
 int error_handler(int udp_sock, const char *errstr, const struct sockaddr_in *bs_addr);
+
+int update_file_list_handler(int udp_sock, const struct sockaddr_in *addr, const struct packet *recv_pck);
 
 void pong_handler();
 

@@ -105,7 +105,7 @@ void free_list(struct node *list) {
 */
 int get_list_count(const struct node *head){
 	struct node *tmp_node;	
-	tmp_node = head;
+	tmp_node = (struct node *)head;
 	int dim = 0;
 	while( tmp_node != NULL){
 		tmp_node = tmp_node->next;
