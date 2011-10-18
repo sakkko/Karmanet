@@ -107,13 +107,13 @@ int init(int udp_sock) {
  * Funzione che gestisce il comando ping.
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
-int ping_handler(int udp_sock, const struct sockaddr_in *addr, unsigned short index) {
+int ping_handler(int udp_sock, const struct sockaddr_in *addr, const struct packet *recv_pck) {
 	struct packet tmp_pck;
 
 	if (is_sp) {
 //		printf("Ricevuto ping da %s:%d\n", inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
 		update_peer_flag(peer_list_checker, addr);
-		new_pong_packet(&tmp_pck, index);
+		new_pong_packet(&tmp_pck, recv_pck->index);
 		if (mutex_send(udp_sock, addr, &tmp_pck) < 0) {
 			fprintf(stderr, "udp_send error - mutex_send failed\n");
 			return -1;
@@ -432,7 +432,7 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 		//ricevuto ERR
 		;
 	} else if (!strncmp(recv_pck.cmd, CMD_PING, CMD_STR_LEN)) { 
-		if (ping_handler(udp_sock, &addr, recv_pck.index) < 0) {
+		if (ping_handler(udp_sock, &addr, &recv_pck) < 0) {
 			fprintf(stderr, "udp_handler error - ping_handler failed\n");
 		}
 	} else if (!strncmp(recv_pck.cmd, CMD_LEAVE, CMD_STR_LEN)) { 
@@ -478,12 +478,26 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 }
 
 int tcp_handler(int tcp_sock) {
-	char buf[1024];
+	char buf[MAX_PACKET_SIZE];
 	int n;
-
-	if ((n = readline(tcp_sock, buf, 1024)) > 0) {
+	struct packet pck_rcv;
+	struct sockaddr_in addr,*addr_list;
+	unsigned int len = sizeof(addr);
+	if ((n = read(tcp_sock, buf, MAX_PACKET_SIZE)) > 0) {
 		//gestire messaggio
-		;
+		b_to_pck(buf, &pck_rcv);
+		if(!strncmp(pck_rcv.cmd , CMD_PING, 3)){
+			if(getpeername(tcp_sock, (struct sockaddr*)&addr, &len) > 0){
+				perror("tcp_handler error - getpeername failed");	
+			}	
+			insert_near(&addr, pck_rcv.data, pck_rcv.data_len);	
+			printf("ricevuto ping da %s:%d\n",inet_ntoa(addr.sin_addr),ntohs(addr.sin_port));
+			addr_list = str_to_addr(pck_rcv.data,MAX_TCP_SOCKET);
+			int j;
+			for(j = 0 ; j< MAX_TCP_SOCKET; j++){
+				printf("near %s:%d\n",inet_ntoa(addr_list[j].sin_addr),ntohs(addr_list[j].sin_port));
+			}
+		}
 	} else if (n == 0) {
 		if (close_conn(tcp_sock) < 0) {
 			fprintf(stderr, "tcp_handler error - close_conn failed\n");

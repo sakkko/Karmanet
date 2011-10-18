@@ -8,15 +8,22 @@
 #include "select_util.h"
 #include "hashtable.h"
 #include "config.h"
+#include "thread_util.h"
+
+#include <errno.h>
 
 #define BACKLOG 10
 #define TCP_PORT 5193
 #define MAX_TCP_SOCKET 6
 
 
+char near_str[MAX_TCP_SOCKET * 6];
+
 int tcp_listen;
 
 int tcp_sock[MAX_TCP_SOCKET];
+
+pthread_mutex_t tcp_lock[MAX_TCP_SOCKET];
 
 int free_sock;
 

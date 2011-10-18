@@ -124,6 +124,19 @@ int send_packet(int socksd, const struct sockaddr_in *addr, const struct packet 
 	
 	return ret;
 }
+
+int send_packet_tcp(int socksd, const struct packet *pck) {
+	int ret;
+	char buf[MAX_PACKET_SIZE];
+	pck_to_b(buf, pck);	
+	if ((ret = write(socksd, buf, get_pcklen(pck))) < 0) {
+		return -1;
+	}
+	
+	return ret;
+}
+
+
 	
 void pckcpy(struct packet *dest, const struct packet *src) {
 	strncpy(dest->cmd, src->cmd, CMD_STR_LEN);
@@ -135,6 +148,11 @@ void pckcpy(struct packet *dest, const struct packet *src) {
 	}
 }
 	
+void add_near_to_packet(struct packet *pck,const char * data, int data_len ){
+	
+	memcpy(pck->data,data,data_len);
+	pck->data_len = data_len;
 
+}
 
 

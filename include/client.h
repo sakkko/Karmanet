@@ -9,6 +9,8 @@
 #include <signal.h>
 #include <sys/wait.h>
 
+
+#include "near_list.h"
 #include "command.h"
 #include "config.h"
 #include "hashtable.h"
@@ -38,8 +40,8 @@
 #define UDP_PORT 5193
 #define BS_PORT 5193
 
-#define MAX_P_COUNT 4  //numero massimo di peer connessi a me stesso
-#define MAX_REDIRECT_COUNT 2 //numero massimo di redirect
+#define MAX_P_COUNT 2  //numero massimo di peer connessi a me stesso
+#define MAX_REDIRECT_COUNT 1 //numero massimo di redirect
 
 #define MAX_BS_ERROR 5
 
@@ -81,7 +83,7 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 
 int redirect_handler(int udp_sock, const struct packet *recv_pck);
 
-int ping_handler(int udp_sock, const struct sockaddr_in *addr, unsigned short index);
+int ping_handler(int udp_sock, const struct sockaddr_in *addr, const struct packet *rcv_pck);
 
 int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct sockaddr_in *bs_addr, const struct packet *recv_pck);
 

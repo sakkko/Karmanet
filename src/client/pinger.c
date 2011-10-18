@@ -55,6 +55,39 @@ void pinger_func(void *args) {
 		if (mutex_send(pinfo->socksd, &pinfo->addr_to_ping, &ping_packet) < 0) {
 			fprintf(stderr, "pinger_func error - can't send ping\n");
 		}
+		
+		if(is_sp){
+			int i;
+	
+			new_ping_packet(&ping_packet, 0);
+			add_near_to_packet(&ping_packet,near_str,MAX_TCP_SOCKET*6);
+			ping_packet.data_len = 6*MAX_TCP_SOCKET;
+			
+			for(i=0; i < MAX_TCP_SOCKET; i++){
+				if(tcp_sock[i] != -1){	
+					ping_packet.index = get_index();	
+					
+					if ((rc = pthread_mutex_lock(&tcp_lock[i])) != 0) {
+						fprintf(stderr, "pinger_func error - can't acquire %d tcp lock: %s\n",i, strerror(rc));
+						pthread_exit((void *)-1);
+					}
+					if(send_packet_tcp(tcp_sock[i],&ping_packet) < 0){
+						fprintf(stderr, "pinger_func error - send_packet_tcp failed \n");
+						pthread_exit((void *)-1);
+					}
+					
+					if ((rc = pthread_mutex_unlock(&tcp_lock[i])) != 0) {
+						fprintf(stderr, "pinger_func error - can't release lock: %s\n", strerror(rc));
+						pthread_exit((void *)-1);
+					}
+				}	
+				
+				
+			}	
+			
+			
+			
+		}
 	}
 
 }

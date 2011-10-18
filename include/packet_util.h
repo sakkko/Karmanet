@@ -58,5 +58,8 @@ int recvfrom_packet(int socksd, struct sockaddr_in *addr, struct packet *pck, in
 
 int send_packet(int socksd, const struct sockaddr_in *addr, const struct packet *pck);
 
+int send_packet_tcp(int socksd, const struct packet *pck);
+	
+void add_near_to_packet(struct packet *pck,const char * data, int data_len);
 
 #endif

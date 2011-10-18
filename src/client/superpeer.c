@@ -8,7 +8,7 @@
 int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
 	int i, ok = 1;
 	int addr_check = 0;
-
+	int rc;
 	for (i = 0;  i < list_len; i ++) {
 		if (ok) {
 			if ((tcp_sock[free_sock] = tcp_socket()) < 0) {
@@ -29,6 +29,17 @@ int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
 			}
 			ok = 1;
 			fd_add(tcp_sock[free_sock]);
+			if((rc = pthread_mutex_init(&tcp_lock[free_sock],NULL))!=0){
+				fprintf(stderr,"join_overlay error - can't initialize lock: %s\n",strerror(rc));
+				return -1;
+				}
+			addr2str(near_str+free_sock*6,sp_addr_list[i].sin_addr.s_addr, sp_addr_list[i].sin_port);	
+			struct sockaddr_in *addr_list;
+				addr_list = str_to_addr(near_str,MAX_TCP_SOCKET);
+				int j;
+				for(j = 0 ; j< MAX_TCP_SOCKET; j++){
+					printf("join_overlay - near %s:%d\n",inet_ntoa(addr_list[j].sin_addr),ntohs(addr_list[j].sin_port));
+				}
 			free_sock ++;
 		}
 	}
@@ -192,15 +203,30 @@ int add_files(const struct sockaddr_in *peer_addr, const char *pck_data, int dat
 
 int accept_conn(int tcp_listen) {
 	int i;
-
+	int rc;
+	struct sockaddr_in addr;
+	int len= sizeof(struct sockaddr_in);
 	if (free_sock < MAX_TCP_SOCKET) {
 		for (i = 0; i < MAX_TCP_SOCKET; i ++) {
 			if (tcp_sock[i] == -1) {
-				if ((tcp_sock[i] = accept(tcp_listen, NULL, NULL)) < 0) {
+				if ((tcp_sock[i] = accept(tcp_listen, (struct sockaddr*)&addr, &len)) < 0) {
 					perror("errore in accept");
 					return -1;
 				}
-				fd_add(tcp_sock[free_sock]);
+				fd_add(tcp_sock[i]);
+				
+				if((rc = pthread_mutex_init(&tcp_lock[i],NULL))!=0){
+					fprintf(stderr,"accept_conn error - can't initialize lock: %s\n",strerror(rc));
+					return -1;
+				}
+				addr2str(near_str+i*6,addr.sin_addr.s_addr, addr.sin_port);	
+				printf("connessione accettata da %s:%d\n",inet_ntoa(addr.sin_addr),ntohs(addr.sin_port));
+				struct sockaddr_in *addr_list;
+				addr_list = str_to_addr(near_str,MAX_TCP_SOCKET);
+				int j;
+				for(j = 0 ; j< MAX_TCP_SOCKET; j++){
+					printf("accept - near %s:%d\n",inet_ntoa(addr_list[j].sin_addr),ntohs(addr_list[j].sin_port));
+				}
 				free_sock ++;
 				break;
 			}
@@ -220,7 +246,7 @@ int accept_conn(int tcp_listen) {
 
 int close_conn(int sock) {
 	int i;
-
+	int rc;
 	for (i = 0; i < MAX_TCP_SOCKET; i ++) {
 		if (tcp_sock[i] == sock) {
 			if (close(tcp_sock[i]) < 0) {
@@ -229,6 +255,11 @@ int close_conn(int sock) {
 			}
 			fd_remove(tcp_sock[i]);
 			tcp_sock[i] = -1;
+			if((rc = pthread_mutex_destroy(&tcp_lock[i]))!=0){
+				fprintf(stderr,"close_conn error - can't initialize lock: %s\n",strerror(rc));
+				return -1;
+			}
+			memcpy(near_str+i*6, "\0" ,6);
 			free_sock --;
 			break;
 		}
