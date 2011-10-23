@@ -20,7 +20,7 @@ void insert_request(unsigned short id, unsigned long ip){
 	ret->next = request_fifo_tail;
 	ret->id = id;
 	ret->ip_sender = ip;
-	ret->ttl = DEFAULT_TTL;
+//	ret->ttl = DEFAULT_TTL;
 	request_fifo_tail = ret;
 		
 }

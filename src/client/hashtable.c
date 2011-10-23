@@ -1,8 +1,20 @@
 #include "hashtable.h"
 
+void print_results_name(const struct addr_node *results, const char *name) {
+	struct in_addr addr;
+	char md5_hex[MD5_DIGEST_LENGTH * 2 + 1];
+
+	while (results != NULL) {
+		to_hex(md5_hex, results->md5->md5);
+		md5_hex[MD5_DIGEST_LENGTH * 2] = 0;
+		addr.s_addr = results->ip;
+		printf("%s:%u %s %s\n", inet_ntoa(addr), ntohs(results->port), md5_hex, name);
+		results = results->next;
+	}
+
+}
 
 struct addr_node *get_by_name(const char *file_name) {
-	
 	unsigned int key = filehash(file_name, strlen(file_name));	
 	printf("cerco file:%s key:%d\n", file_name, key);
 	struct file_node *app = hash_file[key];

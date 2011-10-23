@@ -117,5 +117,13 @@ void usage();
 
 int keyboard_handler(char* str, int udp_sock);
 
+void print_results_name(const struct addr_node *results, const char *name);
+
+int whohas_request_handler(int socksd, int udp_sock, const struct packet *pck, const struct sockaddr_in *addr, int overlay);
+
+int whohas_response_handler(int udp_sock, const struct packet *pck, const struct sockaddr_in *addr);
+
+int whohas_handler_udp(int socksd, const struct packet *pck, const struct sockaddr_in *addr);
+
 #endif
 

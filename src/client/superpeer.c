@@ -7,48 +7,62 @@
  */
 int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
 	int i, ok = 1;
+	int sock_tmp;
 	int addr_check = 0;
-	int rc;
-	for (i = 0;  i < list_len; i ++) {
+	int j;
+	struct sockaddr_in *addr_list;
+
+	memset(near_str, 0, MAX_TCP_SOCKET * 6);
+
+	for (i = 0; i < list_len; i ++) {
 		if (ok) {
-			if ((tcp_sock[free_sock] = tcp_socket()) < 0) {
+			if ((sock_tmp = tcp_socket()) < 0) {
 				perror("join_overlay error - can't initialize tcp socket");
 				return -1;
 			}
+			printf("SOCKET: %d\n", sock_tmp);
+			printf("LISTLEN: %d\n", list_len);
 		}
 		printf("join_overlay - addr: %s:%d\n", inet_ntoa(sp_addr_list[i].sin_addr), ntohs(sp_addr_list[i].sin_port));
-		if (tcp_connect(tcp_sock[free_sock], &sp_addr_list[i]) < 0){
+		if (tcp_connect(sock_tmp, &sp_addr_list[i]) < 0) {
 			perror("join_overlay error - can't connect to superpeer");
 			ok = 0;
 			continue; //provo il prossimo indirizzo
 		} else {
 			printf("Connected with superpeer %s:%d\n", inet_ntoa(sp_addr_list[i].sin_addr), ntohs(sp_addr_list[i].sin_port));
 			if (addr_check == 0) {
-				get_local_addr(tcp_sock[free_sock], &myaddr);
+				get_local_addr(sock_tmp, &myaddr);
 				addr_check = 1;
 			}
 			ok = 1;
-			fd_add(tcp_sock[free_sock]);
-			if((rc = pthread_mutex_init(&tcp_lock[free_sock],NULL))!=0){
-				fprintf(stderr,"join_overlay error - can't initialize lock: %s\n",strerror(rc));
+			fd_add(sock_tmp);
+
+			if (write(sock_tmp, (char *)&conf.udp_port, sizeof(conf.udp_port)) < 0) {
+				perror("join_overlay error - write failed\n");
 				return -1;
-				}
-			addr2str(near_str+free_sock*6,sp_addr_list[i].sin_addr.s_addr, sp_addr_list[i].sin_port);	
-			struct sockaddr_in *addr_list;
-				addr_list = str_to_addr(near_str,MAX_TCP_SOCKET);
-				int j;
-				for(j = 0 ; j< MAX_TCP_SOCKET; j++){
-					printf("join_overlay - near %s:%d\n",inet_ntoa(addr_list[j].sin_addr),ntohs(addr_list[j].sin_port));
-				}
-			free_sock ++;
+			}
+
+			if (insert_near(sock_tmp, &sp_addr_list[i]) < 0) {
+				fprintf(stderr, "join_overlay error - insert_near failed\n");
+				return -1;
+			}
+
+			addr2str(near_str + nsock * 6, sp_addr_list[i].sin_addr.s_addr, sp_addr_list[i].sin_port);	
+			addr_list = str_to_addr(near_str, MAX_TCP_SOCKET);
+			for(j = 0; j < MAX_TCP_SOCKET; j ++){
+				printf("join_overlay - near %s:%d\n", inet_ntoa(addr_list[j].sin_addr), ntohs(addr_list[j].sin_port));
+			}
+
+			nsock ++;
 		}
 	}
 
+
 	if (!ok) {
-		close(tcp_sock[free_sock]);
+		close(sock_tmp);
 	}
 
-	if (free_sock == 0) {
+	if (nsock == 0) {
 		return -1;
 	}
 
@@ -60,23 +74,24 @@ int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
  * Funzione di inizializzazione del superpeer.
  */
 int init_superpeer(const struct sockaddr_in *sp_addr_list, int list_len) {
-	int i;
+	int rc;
 
 	is_sp = 0;
-	free_sock = 0;
+	nsock = 0;
 	curr_p_count = 0;
 	have_child = 0; 
 	curr_child_redirect = 0; 
+
 	//inizializzo socket di ascolto
 	if (set_listen_socket(conf.udp_port) < 0) {
 		fprintf(stderr, "init_superpeer error - set_listen_socket failed\n");
 		return -1;
 	}
 
-	for (i = 0; i < MAX_TCP_SOCKET; i ++) {
-		tcp_sock[i] = -1;
+	if ((rc = pthread_mutex_init(&NEAR_LIST_LOCK, NULL)) != 0) {
+		fprintf(stderr, "init_superpeer error - can't initialize lock: %s\n", strerror(rc));
+		return -1;
 	}
-
 
 	if (sp_addr_list != NULL) {
 		//provo a connettermi agli altri superpeer
@@ -87,6 +102,8 @@ int init_superpeer(const struct sockaddr_in *sp_addr_list, int list_len) {
 		myaddr.sin_port = conf.udp_port;
 		printf("MIO INDIRIZZO: %s:%d\n", inet_ntoa(myaddr.sin_addr), ntohs(myaddr.sin_port));
 	}
+
+
 
 
 	return 0;
@@ -202,40 +219,53 @@ int add_files(const struct sockaddr_in *peer_addr, const char *pck_data, int dat
 }
 
 int accept_conn(int tcp_listen) {
-	int i;
-	int rc;
+	int j, rc;
+	int sock_tmp;
+	int nread;
+	unsigned short port;
+	struct sockaddr_in *addr_list;
 	struct sockaddr_in addr;
-	int len= sizeof(struct sockaddr_in);
-	if (free_sock < MAX_TCP_SOCKET) {
-		for (i = 0; i < MAX_TCP_SOCKET; i ++) {
-			if (tcp_sock[i] == -1) {
-				if ((tcp_sock[i] = accept(tcp_listen, (struct sockaddr*)&addr, &len)) < 0) {
-					perror("errore in accept");
-					return -1;
-				}
-				fd_add(tcp_sock[i]);
-				
-				if((rc = pthread_mutex_init(&tcp_lock[i],NULL))!=0){
-					fprintf(stderr,"accept_conn error - can't initialize lock: %s\n",strerror(rc));
-					return -1;
-				}
-				addr2str(near_str+i*6,addr.sin_addr.s_addr, addr.sin_port);	
-				printf("connessione accettata da %s:%d\n",inet_ntoa(addr.sin_addr),ntohs(addr.sin_port));
-				struct sockaddr_in *addr_list;
-				addr_list = str_to_addr(near_str,MAX_TCP_SOCKET);
-				int j;
-				for(j = 0 ; j< MAX_TCP_SOCKET; j++){
-					printf("accept - near %s:%d\n",inet_ntoa(addr_list[j].sin_addr),ntohs(addr_list[j].sin_port));
-				}
-				free_sock ++;
-				break;
-			}
-		}
+	unsigned int len = sizeof(struct sockaddr_in);
 
-		if (i == MAX_TCP_SOCKET) {
-			fprintf(stderr, "accept_conn error - no free socket found\n");
+	if (nsock < MAX_TCP_SOCKET) {
+		if ((sock_tmp = accept(tcp_listen, (struct sockaddr*)&addr, &len)) < 0) {
+			perror("accept_conn error - accept failed");
 			return -1;
 		}
+		if ((nread = read(sock_tmp, (char *)&port, sizeof(port))) != sizeof(port)) {
+			if (nread < 0) {
+				perror("accept_conn error - read failed");
+			} else {
+				fprintf(stderr, "accept_conn error - bad packet format\n");
+			}
+			return -1;
+		}
+		printf("connessione accettata da %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+
+		fd_add(sock_tmp);
+		addr.sin_port = port;
+
+		if ((rc = pthread_mutex_lock(&NEAR_LIST_LOCK)) != 0) {
+			fprintf(stderr, "accept_conn error - can't acquire lock: %s\n", strerror(rc));
+			return -1;
+		}
+		if (insert_near(sock_tmp, &addr) < 0) {
+			fprintf(stderr, "join_overlay error - insert_near failed\n");
+			return -1;
+		}
+
+		set_near();
+		printf("accept_conn setto la stringa dei vicini\n");
+		if ((rc = pthread_mutex_unlock(&NEAR_LIST_LOCK)) != 0) {
+			fprintf(stderr, "accept_conn error - can't release lock: %s\n", strerror(rc));
+			return -1;
+		}
+	//	printf("connessione accettata da %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+		addr_list = str_to_addr(near_str, MAX_TCP_SOCKET);
+		for(j = 0 ; j < MAX_TCP_SOCKET; j ++){
+			printf("accept - near %s:%d\n", inet_ntoa(addr_list[j].sin_addr), ntohs(addr_list[j].sin_port));
+		}
+		nsock ++;
 	} else {
 		fprintf(stderr, "accept_conn error - can't accept more connection\n");
 		return -1;
@@ -245,32 +275,73 @@ int accept_conn(int tcp_listen) {
 }
 
 int close_conn(int sock) {
-	int i;
-	int rc;
-	for (i = 0; i < MAX_TCP_SOCKET; i ++) {
-		if (tcp_sock[i] == sock) {
-			if (close(tcp_sock[i]) < 0) {
-				perror("close_conn error - close failed");
-				return -1;
-			}
-			fd_remove(tcp_sock[i]);
-			tcp_sock[i] = -1;
-			if((rc = pthread_mutex_destroy(&tcp_lock[i]))!=0){
-				fprintf(stderr,"close_conn error - can't initialize lock: %s\n",strerror(rc));
-				return -1;
-			}
-			memcpy(near_str+i*6, "\0" ,6);
-			free_sock --;
-			break;
-		}
-	}
-
-	if (i == MAX_TCP_SOCKET) {
-		printf("close_conn error - no socket found\n");
+	
+	if (close(sock) < 0) {
+		perror("close_conn error - close failed");
 		return -1;
 	}
 
+	fd_remove(sock);
+
+	if (delete_near(sock) < 0) {
+		fprintf(stderr, "close_conn error - socket not found in near list\n");
+		return -1;
+	}
+
+	set_near();
+	nsock --;
+
 	return 0;
 
+}
+
+void set_near() {
+	struct near_node *iterator = near_list_head;
+	memset(near_str, 0, MAX_TCP_SOCKET * 6);
+	int n = 0;
+
+	while (iterator != NULL) {
+		addr2str(near_str + n * 6, iterator->addr.sin_addr.s_addr, iterator->addr.sin_port);	
+		iterator = iterator->next;
+		n ++;
+	}
+}
+
+
+int flood_overlay(const struct packet *pck, int socksd) {
+	struct near_node *iterator = near_list_head;
+	struct near_node *near_info;
+	int rc;
+
+	near_info = get_near_node(socksd);
+
+	while (iterator != NULL) {		
+		if (iterator->socksd == socksd) {
+			iterator = iterator->next;
+			continue;
+		}
+		
+		if (near_info != NULL && contains_addr(near_info->data, near_info->near_number * ADDR_STR_LEN, &iterator->addr)) {
+			iterator = iterator->next;
+			continue;
+		}
+
+		if ((rc = pthread_mutex_lock(&iterator->mutex)) != 0) {
+			fprintf(stderr, "flood_overlay error - can't acquire lock: %s\n", strerror(rc));
+			return -1;
+		}
+		if (send_packet_tcp(iterator->socksd, pck) < 0) {
+			fprintf(stderr, "flood_overlay error - send_packet_tcp failed\n");
+			//return -1;
+		}
+		if ((rc = pthread_mutex_unlock(&iterator->mutex)) != 0) {
+			fprintf(stderr, "flood_overlay error - can't release lock: %s\n", strerror(rc));
+			return -1;
+		}
+
+		iterator = iterator->next;
+	}
+
+	return 0;
 }
 

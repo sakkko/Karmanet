@@ -154,7 +154,7 @@ int add_dir(int fdnew, int fddiff, const char *share_dir) {
 		return -1;
 	}
 
-	printf("%s\n", share_dir);
+//	printf("%s\n", share_dir);
 	if (add_shared_files(fdnew, fddiff, flist, 0, nfile, share_dir) < 0) {
 		fprintf(stderr, "add_files failed\n");
 		return -1;
@@ -214,7 +214,7 @@ int remove_dir(int fd_share, int fd_diff) {
 			return -1;
 		}
 
-		printf("%s", fname);
+		//printf("%s", fname);
 		fname[nread - 1] = 0;
 		if (write_diff(fd_diff, '-', (const unsigned char *)(buf + sizeof(int) + 1), fname) < 0) {
 			fprintf(stderr, "write_diff failed\n");
@@ -261,7 +261,7 @@ int remove_all_files(int fd_share, int fd_diff) {
 			return -1;
 		}
 
-		printf("%s", fname);
+		//printf("%s", fname);
 		fname[nread - 1] = 0;
 		if (write_diff(fd_diff, '-', (const unsigned char *)buf, fname) < 0) {
 			fprintf(stderr, "remove_all_files error - write_diff failed\n");
@@ -318,8 +318,8 @@ int update_dir(int fd_share, int fdnew, int fddiff, const char *share_dir) {
 			}
 
 			fname[nread - 1] = 0;
-			printf("File letto: %s\n", fname);
-			printf("File corrente: %s\n", flist[i]->d_name);
+			//printf("File letto: %s\n", fname);
+			//printf("File corrente: %s\n", flist[i]->d_name);
 
 			if ((m = strcmp(fname, flist[i]->d_name)) == 0) {
 				sprintf(tmp, "%s/%s", share_dir, fname);
@@ -445,7 +445,7 @@ int diff(int fd_share, int fdnew, int fddiff, const char *share_dir, int flag) {
 		}
 
 		tmp2[nread - 1] = 0;
-		printf("dir name: %s\n", tmp2);
+	//	printf("dir name: %s\n", tmp2);
 
 		if ((m = strcmp(tmp2, share_dir)) == 0) {
 			if (lstat(share_dir, &st) < 0) {
@@ -526,7 +526,10 @@ int create_diff(const char *share_dir) {
 		return -1;
 	}
 
-	diff(fdshare, fdnew, fddiff, share_dir, 0);
+	if (diff(fdshare, fdnew, fddiff, share_dir, 0) < 0) {
+		fprintf(stderr, "create_diff error - diff failed\n");
+		return -1;
+	}
 
 	if (close(fdshare) < 0) {
 		perror("bad close");

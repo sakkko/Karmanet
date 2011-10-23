@@ -48,4 +48,6 @@ int get_local_addr(int socksd, struct sockaddr_in *addr);
 
 unsigned short get_local_port(int socksd);
 
+int contains_addr(const char *str, unsigned int str_len, const struct sockaddr_in *addr);
+
 #endif

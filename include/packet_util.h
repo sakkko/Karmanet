@@ -5,48 +5,53 @@
 #include "ioutil.h"
 #include "inetutil.h"
 
-#define MAX_PACKET_SIZE 1034
-#define HEADER_SIZE CMD_STR_LEN + 6
+#define HEADER_SIZE CMD_STR_LEN + 7
+#define MAX_PACKET_DATA_LEN 1024
+#define MAX_PACKET_SIZE HEADER_SIZE + MAX_PACKET_DATA_LEN
+
+#define DEFAULT_TTL 6
+
+#define PACKET_FLAG_WHOHAS_NAME 1
+#define PACKET_FLAG_WHOHAS_MD5 2
+#define PACKET_FLAG_WHOHAS_QUERY 4 //SET = QUERY UNSET = RESPONSE
+#define PACKET_FLAG_NEXT_CHUNK 8
 
 struct packet {
 	char  cmd[CMD_STR_LEN];
+	char flag;
 	unsigned short index;
 	short TTL;
 	unsigned short data_len;
-	char  data[1024];
+	char  data[MAX_PACKET_DATA_LEN];
 };
-
-char buf[MAX_PACKET_SIZE + 1];
 
 unsigned short get_index();
 
 void init_index();
 
-int new_packet(struct packet * to_create, char* cmd, unsigned short index, char* data, unsigned short data_len, short ttl);
+void new_packet(struct packet *to_create, char *cmd, unsigned short index, char *data, unsigned short data_len, short ttl);
 
-void pckcpy(struct packet *dest, const struct packet *src);
+void new_join_packet(struct packet *pck, unsigned short index);
 
-int new_join_packet(struct packet *pck, unsigned short index);
+void new_join_packet_rate(struct packet *pck, unsigned short index , long rate);
 
-int new_join_packet_rate(struct packet *pck, unsigned short index , long rate);
+void new_ack_packet(struct packet *pck, unsigned short index);
 
-int new_ack_packet(struct packet *pck, unsigned short index);
+void new_err_packet(struct packet *pck, unsigned short index);
 
-int new_err_packet(struct packet *pck, unsigned short index);
+void new_ping_packet(struct packet *pck, unsigned short index);
 
-int new_ping_packet(struct packet *pck, unsigned short index);
+void new_pong_packet(struct packet *pck, unsigned short index);
 
-int new_pong_packet(struct packet *pck, unsigned short index);
+void new_promote_packet(struct packet *pck, unsigned short index);
 
-int new_promote_packet(struct packet *pck, unsigned short index);
+void new_leave_packet(struct packet *pck, unsigned short index);
 
-int new_leave_packet(struct packet *pck, unsigned short index);
+void new_redirect_packet(struct packet *pck, unsigned short index, struct sockaddr_in *child);
 
-int new_redirect_packet(struct packet *pck, unsigned short index, struct sockaddr_in *child);
+void new_register_packet(struct packet *pck, unsigned short index);
 
-int new_register_packet(struct packet *pck, unsigned short index);
-
-int get_pcklen(const struct packet *input_pkg);
+int get_pcklen(const struct packet *input_pck);
 
 void pck_to_b(char *str, const struct packet *input);
 
@@ -58,8 +63,42 @@ int recvfrom_packet(int socksd, struct sockaddr_in *addr, struct packet *pck, in
 
 int send_packet(int socksd, const struct sockaddr_in *addr, const struct packet *pck);
 
+void pckcpy(struct packet *dest, const struct packet *src);
+
 int send_packet_tcp(int socksd, const struct packet *pck);
 	
 void add_near_to_packet(struct packet *pck,const char * data, int data_len);
+
+void set_whohas_name_flag(struct packet *pck);
+
+void set_whohas_md5_flag(struct packet *pck);
+
+void unset_whohas_name_flag(struct packet *pck);
+
+void unset_whohas_md5_flag(struct packet *pck);
+
+void set_nextchunk_flag(struct packet *pck);
+
+void unset_nextchunk_flag(struct packet *pck);
+
+int is_set_flag(const struct packet *pck, char flag);
+
+void set_flag(struct packet *pck, char flag);
+
+void unset_flag(struct packet *pck, char flag);
+
+void set_whohas_query_flag(struct packet *pck);
+
+void unset_whohas_query_flag(struct packet *pck);
+
+void new_whs_query_packet(struct packet *pck, unsigned short index, char *data, unsigned short data_len, short ttl);
+
+void new_whs_query5_packet(struct packet *pck, unsigned short index, char *data, unsigned short data_len, short ttl);
+
+void new_whs_res_packet(struct packet *pck, unsigned short index, char *data, unsigned short data_len, short ttl);
+
+void new_whs_res5_packet(struct packet *pck, unsigned short index, char *data, unsigned short data_len, short ttl);
+
+int recv_packet_tcp(int socksd, struct packet *pck);
 
 #endif

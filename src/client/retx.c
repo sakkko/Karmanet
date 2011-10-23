@@ -61,7 +61,9 @@ void retx_func(void *args) {
 		to = 0;
 		errors = 0;
 		while (1) {
-			printf("Thread %d: data: %s, index: %d timeout: %d sec\n", indx, rtxinfo->snd_info.pck.cmd, rtxinfo->snd_info.pck.index, DEFAULT_TO);
+			strncpy(cmdstr, rtxinfo->snd_info.pck.cmd, CMD_STR_LEN);
+			cmdstr[CMD_STR_LEN] = 0;
+			printf("Thread %d: cmd: %s, index: %d timeout: %d sec\n", indx, cmdstr, rtxinfo->snd_info.pck.index, DEFAULT_TO);
 			if ((rc = pthread_mutex_lock(&retx_mutex)) != 0) {
 				fprintf(stderr, "retx_func error - can't acquire lock: %s\n", strerror(rc));
 				pthread_exit((void *)-1);
@@ -77,8 +79,6 @@ void retx_func(void *args) {
 					continue;
 				}
 
-				strncpy(cmdstr, rtxinfo->snd_info.pck.cmd, CMD_STR_LEN);
-				cmdstr[CMD_STR_LEN] = 0;
 				if (write_err(rtxinfo, cmdstr) < 0) {
 					fprintf(stderr, "retx_func error - write_err failed: %s\n", strerror(rc));
 					pthread_exit((void *)-1);
@@ -99,8 +99,6 @@ void retx_func(void *args) {
 						printf("RITRASMETTO\n");
 						continue;					
 					} else {
-						strncpy(cmdstr, rtxinfo->snd_info.pck.cmd, CMD_STR_LEN);
-						cmdstr[CMD_STR_LEN] = 0;
 						if (write_err(rtxinfo, cmdstr) < 0) {
 							fprintf(stderr, "retx_func error - write_err failed: %s\n", strerror(rc));
 							pthread_exit((void *)-1);

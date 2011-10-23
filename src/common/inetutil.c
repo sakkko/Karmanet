@@ -97,3 +97,21 @@ unsigned short get_local_port(int socksd) {
 	return addr.sin_port;
 }
 
+int contains_addr(const char *str, unsigned int str_len, const struct sockaddr_in *addr) {
+	int offset = 0;
+
+	while (offset < str_len) {
+		if (!memcmp(str + offset, (char *)&addr->sin_addr.s_addr, sizeof(addr->sin_addr.s_addr))) {
+			offset += sizeof(addr->sin_addr.s_addr);
+			if (!memcmp(str + offset, (char *)&addr->sin_port, sizeof(addr->sin_port))) {
+				return 1;
+			}
+			offset += sizeof(addr->sin_port);
+		} else {
+			offset += sizeof(addr->sin_addr.s_addr) + sizeof(addr->sin_port);
+		}
+	}
+
+	return 0;
+}
+

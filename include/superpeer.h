@@ -9,6 +9,7 @@
 #include "hashtable.h"
 #include "config.h"
 #include "thread_util.h"
+#include "near_list.h"
 
 #include <errno.h>
 
@@ -17,15 +18,11 @@
 #define MAX_TCP_SOCKET 6
 
 
-char near_str[MAX_TCP_SOCKET * 6];
+char near_str[MAX_TCP_SOCKET * ADDR_STR_LEN];
 
 int tcp_listen;
 
-int tcp_sock[MAX_TCP_SOCKET];
-
-pthread_mutex_t tcp_lock[MAX_TCP_SOCKET];
-
-int free_sock;
+int nsock;
 
 int is_sp;
 
@@ -54,6 +51,10 @@ int add_files(const struct sockaddr_in *peer_addr, const char *pck_data, int dat
 int accept_conn(int tcp_listen);
 
 int close_conn(int sock);
+
+void set_near();
+
+int flood_overlay(const struct packet *pck, int socksd);
 
 #endif
 

@@ -9,6 +9,7 @@
 #include <fcntl.h>
 
 #include "md5_util.h"
+#include "inetutil.h"
 
 #define HASH_PRIME_NUMBER_FILE 30011
 
@@ -108,5 +109,7 @@ struct md5_info *get_by_md5(const unsigned char *md5);
 int remove_md5_info(struct md5_info *md5_info, struct md5_node *md5_node);
 
 int remove_md5_node(struct md5_node *md5_node);
+
+void print_results_name(const struct addr_node *results, const char *name);
 
 #endif

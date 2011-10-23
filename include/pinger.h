@@ -24,5 +24,6 @@ int pinger_stop(struct pinger_info *pinfo);
 
 void pinger_func(void *args);
 
+int tcp_ping();
 
 #endif

@@ -14,7 +14,6 @@ struct request_node {
 
 struct request_node *request_fifo_tail;
 
-#define DEFAULT_TTL 5;
 
 void insert_request(unsigned short id, unsigned long ip);
 

@@ -2,85 +2,120 @@
 #include "near_list.h"
 
 
-void insert_near(const struct sockaddr_in *addr, const char *data, unsigned int data_len){
-	
-	
-	if(near_list_head == NULL){
-	//creo testa	
-		near_list_head = create_new_near_node(addr,data,data_len);
+int insert_near(int socksd, const struct sockaddr_in *addr){
+	struct near_node *iterator;
+	struct near_node *to_create;
+
+	if (near_list_head == NULL){
+		//creo testa	
+		near_list_head = create_new_near_node(socksd, addr);
 		near_list_head->next = NULL;
 		near_list_head->prev = NULL;
-		return;
+		return 0;
 	}
-	struct near_node * iterator = near_list_head;
+
+	iterator = near_list_head;
 	while(iterator != NULL){
-		
-		if(!memcmp(&(iterator->near_addr), addr, sizeof(struct sockaddr_in) )){
-			memcpy(iterator->data,data,data_len);
-			return;		
+		if (iterator->socksd == socksd) {
+			if (!memcmp(&(iterator->addr), addr, sizeof(struct sockaddr_in))) {
+				return 0;		
+			} else {
+				fprintf(stderr, "insert_near error - list is not consistent\n");
+				return -1;
+			}
+
 		}
 		
 		iterator = iterator->next;
 	}
+
 	//nodo non trovato inserisco in testa
-	struct near_node * to_create = create_new_near_node(addr,data,data_len);
+	to_create = create_new_near_node(socksd, addr);
 	to_create->next = near_list_head->next;
 	to_create->prev = near_list_head;
 	
-	if(near_list_head->next != NULL){
+	if (near_list_head->next != NULL) {
 		near_list_head->next->prev = to_create;
-		
 	}
+
 	near_list_head->next = to_create;
 	
-	return;
+	return 0;
 }
 
-char * get_near_data(const struct sockaddr_in *addr){
-	
-	
-	
-	struct near_node * iterator = near_list_head;
-	while(iterator != NULL){
-		
-		if(!memcmp(&(iterator->near_addr), addr, sizeof(struct sockaddr_in) )){
+int update_near(int socksd, const char *data, unsigned int data_len) {
+	if (near_list_head == NULL) {
+		fprintf(stderr, "update_near error - list is empty\n");
+		return -1;
+	}
 
-			return iterator->data;		
+	struct near_node *iterator = near_list_head;
+
+	while (iterator != NULL) {
+		if (iterator->socksd == socksd) {
+			memcpy(iterator->data, data, data_len);
+			iterator->near_number = data_len / ADDR_STR_LEN;
+			return 0;		
+		}
+		iterator = iterator->next;
+	}
+
+	if (iterator == NULL) {
+		fprintf(stderr, "update_near error - entry not found\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+struct near_node *get_near_node(int socksd) {
+	struct near_node * iterator = near_list_head;
+
+	while(iterator != NULL){
+		if (iterator->socksd == socksd) {
+			break;
 		}
 		
 		iterator = iterator->next;
 	}
-	return NULL;
+
+	return iterator;
 	
 }
 
-struct near_node * create_new_near_node(const struct sockaddr_in *addr, const char *data, int data_len){
-	
-	struct near_node * ret = (struct near_node *)malloc(sizeof(struct near_node));
-	ret->near_addr = *addr;
-	
-	if(ret->data == NULL){
-		printf("ciao\n");
-		}
-	memcpy(ret->data,data,data_len);
-	
+struct near_node *create_new_near_node(int socksd, const struct sockaddr_in *addr){
+	int rc;
+	struct near_node *ret = (struct near_node *)malloc(sizeof(struct near_node));
+
+	ret->socksd = socksd;
+	addrcpy(&ret->addr, addr);
+
+	if ((rc = pthread_mutex_init(&ret->mutex, NULL)) != 0) {
+		fprintf(stderr, "create_new_near_node error - can't initialize lock: %s\n", strerror(rc));
+		return NULL;
+	}
 	return ret;
-	}
+}
 	
 	
-void delete_near_addr(const struct sockaddr_in *addr){
-	
-	struct near_node * iterator = near_list_head;
+int delete_near(int socksd) {
+	struct near_node *iterator = near_list_head;
+	int rc;
+
 	while(iterator != NULL){
-		
-		if(!memcmp(&(iterator->near_addr), addr, sizeof(struct sockaddr_in) )){
-			
-			near_list_head = remove_near_node(near_list_head,iterator);		
+		if (iterator->socksd == socksd) {
+			if ((rc = pthread_mutex_destroy(&iterator->mutex)) != 0) {
+				fprintf(stderr, "delete_near error - can't destroy lock: %s\n", strerror(rc));
+				return -1;
+			}
+
+			near_list_head = remove_near_node(near_list_head, iterator);
+			return 0;
 		}
 		iterator = iterator->next;
 	}
-	return;
-	
+
+	return -1;
 }	
 
 struct near_node *remove_near_node(struct near_node *head, struct near_node *toremove) {

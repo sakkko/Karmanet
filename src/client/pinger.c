@@ -56,39 +56,73 @@ void pinger_func(void *args) {
 			fprintf(stderr, "pinger_func error - can't send ping\n");
 		}
 		
-		if(is_sp){
-			int i;
-	
-			new_ping_packet(&ping_packet, 0);
-			add_near_to_packet(&ping_packet,near_str,MAX_TCP_SOCKET*6);
-			ping_packet.data_len = 6*MAX_TCP_SOCKET;
-			
-			for(i=0; i < MAX_TCP_SOCKET; i++){
-				if(tcp_sock[i] != -1){	
-					ping_packet.index = get_index();	
-					
-					if ((rc = pthread_mutex_lock(&tcp_lock[i])) != 0) {
-						fprintf(stderr, "pinger_func error - can't acquire %d tcp lock: %s\n",i, strerror(rc));
-						pthread_exit((void *)-1);
-					}
-					if(send_packet_tcp(tcp_sock[i],&ping_packet) < 0){
-						fprintf(stderr, "pinger_func error - send_packet_tcp failed \n");
-						pthread_exit((void *)-1);
-					}
-					
-					if ((rc = pthread_mutex_unlock(&tcp_lock[i])) != 0) {
-						fprintf(stderr, "pinger_func error - can't release lock: %s\n", strerror(rc));
-						pthread_exit((void *)-1);
-					}
-				}	
-				
-				
-			}	
-			
-			
-			
-		}
+		if (is_sp){
+			if (tcp_ping() < 0) {
+				fprintf(stderr, "pinger_func error - tcp_ping failed\n");
+				pthread_exit((void *)-1);
+			}
+		}	
 	}
 
+}
+
+int tcp_ping(struct pinger_info *pinfo) {
+	struct near_node *iterator;
+	struct packet ping_packet;
+	int rc;
+
+	new_ping_packet(&ping_packet, 0);
+
+//	printf("tcp_ping ottengo lock\n");
+	if ((rc = pthread_mutex_lock(&NEAR_LIST_LOCK)) != 0) {
+		fprintf(stderr, "tcp_ping error - can't acquire lock: %s\n", strerror(rc));
+		return -1;
+	}
+//	printf("tcp_ping lock ottenuto\n");
+
+	add_near_to_packet(&ping_packet, near_str, MAX_TCP_SOCKET * 6);
+	ping_packet.data_len = 6 * nsock;
+
+	iterator = near_list_head;
+	while (iterator != NULL) {
+		ping_packet.index = get_index();	
+		if ((rc = pthread_mutex_lock(&iterator->mutex)) != 0) {
+			fprintf(stderr, "tcp_ping error - can't acquire tcp lock: %s\n", strerror(rc));
+			if ((rc = pthread_mutex_unlock(&NEAR_LIST_LOCK)) != 0) {
+				fprintf(stderr, "tcp_ping error - can't release lock: %s\n", strerror(rc));
+			}
+			return -1;
+		}
+
+		if(send_packet_tcp(iterator->socksd, &ping_packet) < 0){
+			fprintf(stderr, "tcp_ping error - send_packet_tcp failed \n");
+			if ((rc = pthread_mutex_unlock(&iterator->mutex)) != 0) {
+				fprintf(stderr, "tcp_ping error - can't release lock: %s\n", strerror(rc));
+			}
+			if ((rc = pthread_mutex_unlock(&NEAR_LIST_LOCK)) != 0) {
+				fprintf(stderr, "tcp_ping error - can't release lock: %s\n", strerror(rc));
+			}
+			return -1;
+		}
+
+		if ((rc = pthread_mutex_unlock(&iterator->mutex)) != 0) {
+			if ((rc = pthread_mutex_unlock(&NEAR_LIST_LOCK)) != 0) {
+				fprintf(stderr, "tcp_ping error - can't release lock: %s\n", strerror(rc));
+			}
+
+			fprintf(stderr, "tcp_ping error - can't release lock: %s\n", strerror(rc));
+			return -1;
+		}
+
+		iterator = iterator->next;
+	}
+
+	if ((rc = pthread_mutex_unlock(&NEAR_LIST_LOCK)) != 0) {
+		fprintf(stderr, "tcp_ping error - can't release lock: %s\n", strerror(rc));
+		return -1;
+	}
+//	printf("tcp_ping rilascio lock\n");
+
+	return 0;
 }
 
