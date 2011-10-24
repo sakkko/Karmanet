@@ -9,47 +9,30 @@
 
 #include "inetutil.h"
 #include "packet_util.h"
+#include "packet_list.h"
+#include "thread_util.h"
 
-#define NTHREADS 3
+#define TIME_TO_SLEEP 1
 #define DEFAULT_TO 5
-#define MAX_TO 15
-
-struct send_info {
-	int socksd;
-	struct packet pck;
-	struct sockaddr_in addrto;
-};
+#define MAX_RETX 6
 
 struct retx_info {
 	pthread_t thread;
-	int index;
-	struct send_info snd_info;
-	sem_t sem;
 	pthread_mutex_t *pipe_mutex;
 	int retx_wr_pipe;
 };
 
 
-struct retx_info retx_threads[NTHREADS];
-
-sem_t rtx_sem, pck_sem;
-
-struct send_info packet_to_send;
-
 void retx_func(void *args);
 
 int retx_send(int socksd, const struct sockaddr_in *addr, const struct packet *pck);
 
-int retx_stop(int pck_index);
+int retx_stop(int pck_index, char *pck_cmd);
 
-int retx_init(int wr_pipe, pthread_mutex_t *pipe_mutex);
+int retx_run(struct retx_info *rtxinfo);
 
 int mutex_send(int socksd, const struct sockaddr_in *addr, const struct packet *pck);
 
-int get_pck_tosend(struct retx_info *rtxinfo);
-
 int write_err(const struct retx_info *rtxinfo, char *msg);
-
-int try_retx_send(int socksd, const struct sockaddr_in *addr, const struct packet *pck);
 
 #endif

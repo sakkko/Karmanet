@@ -112,4 +112,7 @@ int remove_md5_node(struct md5_node *md5_node);
 
 void print_results_name(const struct addr_node *results, const char *name);
 
+void print_results_md5(const struct md5_info *results);
+
 #endif
+

@@ -46,7 +46,6 @@
 #define MAX_BS_ERROR 5
 
 pthread_mutex_t pipe_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 int thread_pipe[2]; // usato per pipe	
 
 long peer_rate;
@@ -55,13 +54,10 @@ int state;
 
 int bserror;
 
-int fd_offset;
-
-
 struct sp_checker_info *sp_checker;
 struct peer_list_ch_info *peer_list_checker;
 struct pinger_info pinger;
-
+struct retx_info retx;
 
 struct sockaddr_in *addr_list;
 int addr_list_len;
@@ -115,7 +111,7 @@ void help();
 
 void usage();
 
-int keyboard_handler(char* str, int udp_sock);
+int keyboard_handler(int udp_sock);
 
 void print_results_name(const struct addr_node *results, const char *name);
 
