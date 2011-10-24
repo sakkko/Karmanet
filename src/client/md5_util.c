@@ -69,4 +69,14 @@ void print_as_hex(const unsigned char *digest, int len) {
 	printf("\n");
 }
 
+void get_from_hex(const char *strhex, unsigned char *digest, int len) {
+	int i;
+	unsigned int tmp;
+
+	for (i = 0; i < len; i ++) {
+		sscanf(strhex +  i * 2, "%02x", &tmp);
+		digest[i] = (unsigned char)tmp;
+	}
+}
+
 

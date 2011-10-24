@@ -20,4 +20,6 @@ void print_as_hex(const unsigned char *digest, int len);
 
 void to_hex(char *strhex, const unsigned char *md5);
 
+void get_from_hex(const char *strhex, unsigned char *digest, int len);
+
 #endif
