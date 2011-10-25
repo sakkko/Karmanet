@@ -14,6 +14,20 @@ void print_results_name(const struct addr_node *results, const char *name) {
 
 }
 
+void print_results_md5(const struct md5_info *results) {
+	struct in_addr addr;
+	char md5_hex[MD5_DIGEST_LENGTH * 2 + 1];
+
+	to_hex(md5_hex, results->info->addr->md5->md5);
+	md5_hex[MD5_DIGEST_LENGTH * 2] = 0;
+	while (results != NULL) {
+		addr.s_addr = results->info->addr->ip;
+		printf("%s:%u %s %s\n", inet_ntoa(addr), ntohs(results->info->addr->port), md5_hex, results->info->file->name);
+		results = results->next;
+	}
+
+}
+
 struct addr_node *get_by_name(const char *file_name) {
 	unsigned int key = filehash(file_name, strlen(file_name));	
 	printf("cerco file:%s key:%d\n", file_name, key);
