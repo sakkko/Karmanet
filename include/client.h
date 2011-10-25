@@ -64,7 +64,6 @@ int addr_list_len;
 int curr_addr_index;
 int curr_redirect_count;
 
-
 void set_rate();
 
 int init();

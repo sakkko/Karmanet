@@ -45,6 +45,10 @@ void new_whs_res5_packet(struct packet *pck, unsigned short index, char *data, u
 	set_whohas_md5_flag(pck);
 }
 
+void new_get_packet(struct packet *pck, unsigned short index, char *data, unsigned short data_len, short ttl) {
+	new_packet(pck, CMD_WHOHAS, index, data, data_len, ttl);
+	set_whohas_query_flag(pck);
+}
 void new_join_packet(struct packet *pck, unsigned short index) {
 	new_packet(pck, CMD_JOIN, index, NULL, 0, 1);
 }

@@ -145,6 +145,10 @@ int init(int udp_sock) {
 		return -1;
 	}
 
+	if (downloader_init(conf.max_download)) {
+
+	
+
 	bserror = 0;
 	state = 0;
 	fd_init();	
