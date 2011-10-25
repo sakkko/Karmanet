@@ -53,6 +53,29 @@ int keyboard_handler(char* str, int udp_sock){
 			//printf("Ricerca iniziata, attendere...\n");
 		}
 		
+	} else if (!strncmp(str, "get", 3)) {
+		if (strlen(str) <= 4) {
+			return 0;
+		}//get ip:port md5
+		
+		char ip_str[15];
+		int i,ip_len = 0;
+		char md5_str[32];
+		while(strncmp(str+4+ip_len,":",1)){
+			ip_len++;	
+		}
+		strncpy(ip_str,str+4,ip_len);
+		ip_str[ip_len]=0;
+		i = ip_len;
+		while(strncmp(str+5+i," ",1)){
+			i++;	
+		}
+		strncpy(md5_str,str+6+i, 32 );
+		md5_str[32]=0;
+		//printf(" md5:%s \n"/*,ip_str,atoi(str+5+ip_len)*/,md5_str);
+		struct sockaddr_in to_download;
+		set_addr_in(&to_download, ip_str, atoi(str+5+ip_len));
+		//start download (&to_download,md5_str);
 	} else if (!strcmp(str, "help")) {
 		write_help();
 	} else if (!strcmp(str, "update")) {
