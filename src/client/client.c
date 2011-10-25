@@ -284,7 +284,6 @@ int add_sp_file(const struct sockaddr_in *addr) {
 			return -1;
 		}
 		buf[MD5_DIGEST_LENGTH + n] = 0;
-	//	printf("%s\n", buf + MD5_DIGEST_LENGTH + 1);
 		
 		if (*buf == '+') {
 			insert_file(buf + MD5_DIGEST_LENGTH + 1, (const unsigned char *)(buf + 1), addr->sin_addr.s_addr, addr->sin_port);
@@ -512,10 +511,8 @@ int whohas_request_handler(int socksd, int udp_sock, const struct packet *pck, c
 			}
 
 		}
-
-
 	} else if (is_set_flag(&tmp_pck, PACKET_FLAG_WHOHAS_MD5)) {
-
+		
 	}
 	
 
