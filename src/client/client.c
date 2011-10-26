@@ -630,6 +630,7 @@ printf("response handler\n");
 
 		offset = tmp - pck->data + 1;
 
+		printf("offset %d   datalen:%d\n",offset ,pck->data_len);
 		while (offset < pck->data_len) {
 			ip = btol(pck->data + offset);
 			inaddr.s_addr = ip;
@@ -653,6 +654,8 @@ printf("response handler\n");
 		md5_hex[MD5_DIGEST_LENGTH * 2] = 0;	
 		*tmp = 0;
 		offset = tmp - pck->data + 1;
+		
+		printf("offset %d   datalen:%d\n",offset ,pck->data_len);
 		while (offset < pck->data_len) {
 			ip = btol(pck->data + offset);
 			inaddr.s_addr = ip;
@@ -666,9 +669,10 @@ printf("response handler\n");
 				return -1;
 			}
 			
-			len =(int)(tmp - pck->data + offset);
+			len =(int)(tmp - (pck->data + offset));
+			printf("len %d\n",len);
 			strncpy(name,pck->data + offset, len);
-			offset+= len;
+			offset+= len+1;
 			printf("-%s:%u %s %s\n", inet_ntoa(inaddr), ntohs(port), name , md5_hex);
 		}
 	}
