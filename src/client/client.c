@@ -64,7 +64,6 @@ int keyboard_handler(int udp_sock){
 			}			
 			//printf("Ricerca iniziata, attendere...\n");
 		}
-		printf("MD5 richiesto: %s\n", str + 11);	
 	} else if (!strncmp(str, "whohas", 6)) {
 		if (strlen(str) <= 7) {
 			return 0;
@@ -630,7 +629,6 @@ printf("response handler\n");
 
 		offset = tmp - pck->data + 1;
 
-		printf("offset %d   datalen:%d\n",offset ,pck->data_len);
 		while (offset < pck->data_len) {
 			ip = btol(pck->data + offset);
 			inaddr.s_addr = ip;
@@ -641,7 +639,7 @@ printf("response handler\n");
 			md5_hex[MD5_DIGEST_LENGTH * 2] = 0;
 			offset += MD5_DIGEST_LENGTH;
 
-			printf("+%s:%u %s %s\n", inet_ntoa(inaddr), ntohs(port), md5_hex, pck->data);
+			printf("%s:%u %s %s\n", inet_ntoa(inaddr), ntohs(port), md5_hex, pck->data);
 		}
 
 	} else if (is_set_flag(pck, PACKET_FLAG_WHOHAS_MD5)) {
@@ -655,7 +653,6 @@ printf("response handler\n");
 		*tmp = 0;
 		offset = tmp - pck->data + 1;
 		
-		printf("offset %d   datalen:%d\n",offset ,pck->data_len);
 		while (offset < pck->data_len) {
 			ip = btol(pck->data + offset);
 			inaddr.s_addr = ip;
@@ -670,10 +667,10 @@ printf("response handler\n");
 			}
 			
 			len =(int)(tmp - (pck->data + offset));
-			printf("len %d\n",len);
 			strncpy(name,pck->data + offset, len);
+			name[len]=0;
 			offset+= len+1;
-			printf("-%s:%u %s %s\n", inet_ntoa(inaddr), ntohs(port), name , md5_hex);
+			printf("%s:%u %s %s\n", inet_ntoa(inaddr), ntohs(port), name , md5_hex);
 		}
 	}
 
