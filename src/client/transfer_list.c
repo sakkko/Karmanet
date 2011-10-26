@@ -1,4 +1,4 @@
-#include "download_list.h"
+#include "transfer_list.h"
 
 void insert_download(const struct sockaddr_in *addr, unsigned char* md5) {
 	struct download_node *new_node;
@@ -29,7 +29,7 @@ struct download_node *new_download_node(const struct sockaddr_in *addr, unsigned
 /*
 * Funzione che elimina un indirizzo dalla lista.
 */
-struct download_list *pop_download() {
+struct download_node *pop_download() {
 	struct node *tmp_node;
 	struct download_node *ret = NULL;
 
@@ -44,12 +44,4 @@ struct download_list *pop_download() {
 }
 
 
-/*
-* Funzione che elimina l'intera lista
-*/
-void free_download_list() {
-	while (download_list_head != NULL) {
-		remove_download_node(download_list_head);
-	}
-}
 

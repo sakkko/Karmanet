@@ -1,7 +1,7 @@
 #include "retx.h"
 
 pthread_mutex_t download_list_mutex = PTHREAD_MUTEX_INITIALIZER;
-
+/*
 void download_func(void *args) {
 	struct downloader_info *dwinfo = (struct downloader_info *)args;
 	int socksd;
@@ -334,4 +334,4 @@ int downloader_run(struct downloader_info *dwinfo) {
 
 	return 0;
 }
-
+*/
