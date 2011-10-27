@@ -97,4 +97,11 @@ void get_dirpath(char *destpath, const char *fullpath) {
 	destpath[i] = 0;
 }
 
+int get_file_size(int fd) {
+	int old_offset = lseek(fd, 0, SEEK_CUR);
+	int ret = lseek(fd, 0, SEEK_END);
+	lseek(fd, old_offset, SEEK_SET);
+	return ret;
+}
+
 

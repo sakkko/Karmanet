@@ -32,5 +32,7 @@ unsigned short get_rand();
 
 void get_dirpath(char *destpath, const char *fullpath);
 
+int get_file_size(int fd);
+
 #endif
 

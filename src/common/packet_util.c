@@ -12,7 +12,7 @@ void init_index() {
 	start_index = get_rand();
 }
 
-void new_packet(struct packet *to_create, char *cmd, unsigned short index, char *data, unsigned short data_len, short ttl) {
+void new_packet(struct packet *to_create, const char *cmd, unsigned short index, const char *data, unsigned short data_len, short ttl) {
 	strcpy(to_create->cmd, cmd);
 	to_create->index = index;
 	to_create->flag = 0;
@@ -23,38 +23,39 @@ void new_packet(struct packet *to_create, char *cmd, unsigned short index, char 
 	}
 }
 
-void new_whs_query_packet(struct packet *pck, unsigned short index, char *data, unsigned short data_len, short ttl) {
+void new_whs_query_packet(struct packet *pck, unsigned short index, const char *data, unsigned short data_len, short ttl) {
 	new_packet(pck, CMD_WHOHAS, index, data, data_len, ttl);
 	set_whohas_name_flag(pck);
-	set_whohas_query_flag(pck);	
+	set_query_flag(pck);	
 }
 
-void new_whs_query5_packet(struct packet *pck, unsigned short index, char *data, unsigned short data_len, short ttl) {
+void new_whs_query5_packet(struct packet *pck, unsigned short index, const char *data, unsigned short data_len, short ttl) {
 	new_packet(pck, CMD_WHOHAS, index, data, data_len, ttl);
 	set_whohas_md5_flag(pck);
-	set_whohas_query_flag(pck);	
+	set_query_flag(pck);	
 }
 
-void new_whs_res_packet(struct packet *pck, unsigned short index, char *data, unsigned short data_len, short ttl) {
+void new_whs_res_packet(struct packet *pck, unsigned short index, const char *data, unsigned short data_len, short ttl) {
 	new_packet(pck, CMD_WHOHAS, index, data, data_len, ttl);
 	set_whohas_name_flag(pck);
 }
 
-void new_whs_res5_packet(struct packet *pck, unsigned short index, char *data, unsigned short data_len, short ttl) {
+void new_whs_res5_packet(struct packet *pck, unsigned short index, const char *data, unsigned short data_len, short ttl) {
 	new_packet(pck, CMD_WHOHAS, index, data, data_len, ttl);
 	set_whohas_md5_flag(pck);
 }
 
-void new_get_packet(struct packet *pck, unsigned short index, char *data, unsigned short data_len, short ttl) {
-	new_packet(pck, CMD_WHOHAS, index, data, data_len, ttl);
-	set_whohas_query_flag(pck);
+void new_get_packet(struct packet *pck, unsigned short index, const char *data, unsigned short data_len, short ttl) {
+	new_packet(pck, CMD_GET, index, data, data_len, ttl);
+	set_query_flag(pck);
 }
+
 void new_join_packet(struct packet *pck, unsigned short index) {
 	new_packet(pck, CMD_JOIN, index, NULL, 0, 1);
 }
 
 
-void new_join_packet_rate(struct packet *pck, unsigned short index , long rate) {
+void new_join_packet_rate(struct packet *pck, unsigned short index, long rate) {
 	char str[sizeof(long)];
 	ltob(str, rate);
 	new_packet(pck, CMD_JOIN, index, str, 4, 1);
@@ -136,6 +137,8 @@ int recvfrom_packet(int socksd, struct sockaddr_in *addr, struct packet *pck, in
 	
 	if ((ret = udp_recvfrom(socksd, addr, (socklen_t *)len, buf, MAX_PACKET_SIZE)) < 0) {
 		return -1;
+	} else if (ret == 0) {
+		return 0;
 	}
 	
 	b_to_pck(buf, pck);
@@ -153,6 +156,8 @@ int recv_packet_tcp(int socksd, struct packet *pck) {
 	if ((ret = read(socksd, buf, MAX_PACKET_SIZE)) < 0) {
 		perror("recv_packet_tcp error - read failed");
 		return -1;
+	} else if (ret == 0) {
+		return 0;
 	}
 
 	b_to_pck(buf, pck);
@@ -193,21 +198,21 @@ void pckcpy(struct packet *dest, const struct packet *src) {
 	}
 }
 	
-void add_near_to_packet(struct packet *pck,const char * data, int data_len ){
+void add_near_to_packet(struct packet *pck, const char *data, int data_len ){
 	memcpy(pck->data,data,data_len);
 	pck->data_len = data_len;
 }
 
 void set_whohas_name_flag(struct packet *pck) {
-	set_flag(pck, (char)PACKET_FLAG_WHOHAS_NAME);
+	set_flag(pck, PACKET_FLAG_WHOHAS_NAME);
 }
 
 void set_whohas_md5_flag(struct packet *pck) {
 	set_flag(pck, PACKET_FLAG_WHOHAS_MD5);
 }
 
-void set_whohas_query_flag(struct packet *pck) {
-	set_flag(pck, PACKET_FLAG_WHOHAS_QUERY);
+void set_query_flag(struct packet *pck) {
+	set_flag(pck, PACKET_FLAG_QUERY);
 }
 
 void set_nextchunk_flag(struct packet *pck) {
@@ -222,8 +227,8 @@ void unset_whohas_md5_flag(struct packet *pck) {
 	unset_flag(pck, PACKET_FLAG_WHOHAS_MD5);
 }
 
-void unset_whohas_query_flag(struct packet *pck) {
-	unset_flag(pck, PACKET_FLAG_WHOHAS_QUERY);
+void unset_query_flag(struct packet *pck) {
+	unset_flag(pck, PACKET_FLAG_QUERY);
 }
 
 void unset_nextchunk_flag(struct packet *pck) {

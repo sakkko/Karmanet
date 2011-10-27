@@ -26,6 +26,8 @@
 #include "select_util.h"
 #include "superpeer.h"
 #include "shared.h"
+#include "downloader.h"
+#include "uploader.h"
 
 
 #define ST_JOINBS_SENT 1
@@ -35,7 +37,6 @@
 #define ST_REGISTER_SENT 5
 #define ST_ACTIVE 6
 #define ST_LEAVE_SENT 7
-#define ST_FILELIST_SENT 8
 
 #define UDP_PORT 5193
 #define BS_PORT 5193
@@ -54,6 +55,9 @@ int state;
 
 int bserror;
 
+int dw_listen_sock;
+int transfer_initialized;
+
 struct sp_checker_info *sp_checker;
 struct peer_list_ch_info *peer_list_checker;
 struct pinger_info pinger;
@@ -67,6 +71,8 @@ int curr_redirect_count;
 void set_rate();
 
 int init();
+
+int init_transfer();
 
 int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr);
 
@@ -96,7 +102,7 @@ int stop_threads(int reset);
 
 int send_share_file(int udp_sock, const struct sockaddr_in *addr);
 
-int add_sp_file(const struct sockaddr_in *addr);
+int add_sp_file(unsigned long ip, unsigned short port);
 
 int send_share(int udp_sock, const struct sockaddr_in *addr);
 

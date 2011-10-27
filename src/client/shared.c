@@ -35,7 +35,7 @@ int seldir(const struct dirent *dirname) {
  * Scrive una direcory nel file share.
  */
 int write_dir(int fd, int modtime, const char *dir) {
-	char tmp[1024];
+	char tmp[MAXLINE];
 
 	*tmp = '#';
 	memcpy(tmp + 1, (char *)&modtime, sizeof(modtime));
@@ -87,7 +87,7 @@ int write_diff(int fd, char flag, const unsigned char *md5, const char *filename
  * Aggiunge un file, scrive il file share e il file diff.
  */
 int add_shared_file(int fd_share, int fd_diff, const struct dirent *file, const char *share_dir) {
-	char filepath[1024];
+	char filepath[MAXLINE];
 	unsigned char md5[MD5_DIGEST_LENGTH];
 	struct stat st;
 
@@ -197,7 +197,7 @@ int update_file(int fdnew, int fddiff, time_t modtime, const char *fpath, const 
  */
 int remove_dir(int fd_share, int fd_diff) {
 	int nread;
-	char buf[1024];
+	char buf[MAXLINE];
 	char fname[255];
 
 	while ((nread = read(fd_share, buf, MD5_DIGEST_LENGTH + sizeof(int) + 1)) > 0) {
@@ -232,7 +232,7 @@ int remove_dir(int fd_share, int fd_diff) {
  */
 int remove_all_files(int fd_share, int fd_diff) {
 	int nread;
-	char buf[1024];
+	char buf[MAXLINE];
 	char fname[255];
 
 	while ((nread = read(fd_share, buf, sizeof(int) + 1)) > 0) {
@@ -280,8 +280,8 @@ int update_dir(int fd_share, int fdnew, int fddiff, const char *share_dir) {
 	int nread, nfile;
 	struct dirent **flist;
 	struct stat st;
-	char buf[1024];
-	char tmp[1024];
+	char buf[MAXLINE];
+	char tmp[MAXLINE];
 	char fname[255];
 	time_t modtime, mtime;
 	int i = 0, m;
@@ -378,7 +378,7 @@ int update_dir(int fd_share, int fdnew, int fddiff, const char *share_dir) {
  */
 int copy_dir(int fd_share, int fdnew) {
 	int nread;
-	char buf[1024];
+	char buf[MAXLINE];
 
 	while ((nread = read(fd_share, buf, MD5_DIGEST_LENGTH + sizeof(time_t) + 1)) > 0) {
 		if (nread != MD5_DIGEST_LENGTH + sizeof(time_t) + 1) {
@@ -389,7 +389,7 @@ int copy_dir(int fd_share, int fdnew) {
 			lseek(fd_share, -1 * nread, SEEK_CUR);
 			break;
 		} else {
-			if ((nread = readline(fd_share, buf + MD5_DIGEST_LENGTH + sizeof(time_t) + 1, 1024)) < 0) {
+			if ((nread = readline(fd_share, buf + MD5_DIGEST_LENGTH + sizeof(time_t) + 1, MAXLINE)) < 0) {
 				perror("copy_dir error - bad read");
 				return -1;
 			}
@@ -410,8 +410,8 @@ int copy_dir(int fd_share, int fdnew) {
 int diff(int fd_share, int fdnew, int fddiff, const char *share_dir, int flag) {
 	int ndir, nread, n, m;
 	struct dirent **dlist;
-	char tmp2[1024];
-	char buf[1024];
+	char tmp2[MAXLINE];
+	char buf[MAXLINE];
 	struct stat st;
 	time_t modtime;
 	int mtime;
@@ -439,7 +439,7 @@ int diff(int fd_share, int fdnew, int fddiff, const char *share_dir, int flag) {
 
 		mtime = *((int *)(buf + 1));
 
-		if ((nread = readline(fd_share, tmp2, 1024)) < 0) {
+		if ((nread = readline(fd_share, tmp2, MAXLINE)) < 0) {
 			perror("bad read");
 			return -1;
 		}
@@ -557,5 +557,103 @@ int create_diff(const char *share_dir) {
 	}
 
 	return 0;
+}
+
+/*
+ * Cerca nel file share e setta il filepath del file avente l'md5 
+ * passato come parametro.
+ * Ritorna -1 in caso di errore, 0 se il file è stato trovato, 
+ * 1 se il file non è stato trovato.
+ */
+int get_filepath(char *filepath, char *filename, const unsigned char *md5) {
+	int fd;
+	char buf[MAXLINE];
+	char dirname[MAXLINE];
+	char md5_str[MD5_DIGEST_LENGTH * 2 + 1];
+	int n;
+
+	if ((fd = open(FILE_SHARE, O_RDONLY)) < 0) {
+		perror("get_filepath error - open failed");
+		return -1;
+	}
+
+	while ((n = read(fd, buf, sizeof(time_t) + 1)) > 0) {
+		if (n != sizeof(time_t) + 1 || (*buf != '#' && *buf != '%')) {
+			fprintf(stderr, "get_filepath error - bad file format\n");
+			if (close(fd) < 0) {
+				perror("get_filepath error - close failed");
+			}
+			return -1;
+		}
+
+		if (*buf == '#') {
+			if ((n = readline(fd, dirname, MAXLINE)) < 0) {
+				perror("get_filepath error - readline failed");
+				if (close(fd) < 0) {
+					perror("get_filepath error - close failed");
+				}
+				return -1;
+			} else if (n == 0) {
+				fprintf(stderr, "get_filepath error - bad file format\n");
+				if (close(fd) < 0) {
+					perror("get_filepath error - close failed");
+				}
+				return -1;
+			}
+
+			dirname[n - 1] = 0;
+		} else {
+			if ((n = read(fd, buf, MD5_DIGEST_LENGTH)) < 0) {
+				perror("get_filepath error - read failed");
+				if (close(fd) < 0) {
+					perror("get_filepath error - close failed");
+				}
+				return -1;
+			} else if (n != MD5_DIGEST_LENGTH) {
+				fprintf(stderr, "get_filepath error - bad file format\n");
+				if (close(fd) < 0) {
+					perror("get_filepath error - close failed");
+				}
+				return -1;
+			}
+
+			to_hex(md5_str, (const unsigned char *)buf);
+			md5_str[MD5_DIGEST_LENGTH * 2] = 0;
+
+			if ((n = readline(fd, filename, 255)) < 0) {
+				perror("get_filepath error - readline failed");
+				if (close(fd) < 0) {
+					perror("get_filepath error - close failed");
+				}
+				return -1;
+			} else if (n == 0) {
+				fprintf(stderr, "get_filepath error - bad file format\n");
+				if (close(fd) < 0) {
+					perror("get_filepath error - close failed");
+				}
+				return -1;
+			}
+
+			filename[n - 1] = 0;
+			if (!memcmp(buf, md5, MD5_DIGEST_LENGTH)) {
+				sprintf(filepath, "%s/%s", dirname, filename);
+				printf("%s/%s\n", dirname, filename);
+				printf("%s\n", filepath);
+				if (close(fd) < 0) {
+					perror("get_filepath error - close failed");
+				}
+				return 0;	
+			}
+		}
+
+	}
+
+
+	if (close(fd) < 0) {
+		perror("get_filepath error - close failed");
+		return -1;
+	}
+
+	return 1;
 }
 

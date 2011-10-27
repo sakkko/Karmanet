@@ -1,294 +1,423 @@
-#include "retx.h"
+#include "downloader.h"
 
 pthread_mutex_t download_list_mutex = PTHREAD_MUTEX_INITIALIZER;
-/*
-void download_func(void *args) {
+
+void downloader_func(void *args) {
 	struct downloader_info *dwinfo = (struct downloader_info *)args;
-	int socksd;
-	char cmdstr[CMD_STR_LEN + 1];
+	struct packet send_pck, recv_pck;
+	int fdpart, fd;
 	struct timespec sleep_time;
-	struct download_node *dwnode;
-	int rc;
-	char buf[MAX_LINE + 10];
+	struct transfer_node *dwnode;
+	int i, rc;
+	char buf[MAXLINE];
+	char partname[260];
+	int my_chunk_number, miss_chunk_number;
+	int *missing_chunk;
 
 	sleep_time.tv_sec = TIME_TO_SLEEP;
 	sleep_time.tv_nsec = 0;
 
 	while (1) {
 		nanosleep(&sleep_time, NULL);
-		if ((rc = pthread_mutex_lock(&download_mutex)) != 0) {
+		if ((rc = pthread_mutex_lock(&download_list_mutex)) != 0) {
 			fprintf(stderr, "retx_func error - can't acquire lock: %s\n", strerror(rc));
 			pthread_exit((void *)-1);
 		}
 
-		dwnode = pop_download();
+		dwnode = get_download();
 		
-		if ((rc = pthread_mutex_unlock(&retx_mutex)) != 0) {
+		if ((rc = pthread_mutex_unlock(&download_list_mutex)) != 0) {
 			fprintf(stderr, "retx_func error - can't release lock: %s\n", strerror(rc));
 			pthread_exit((void *)-1);
 		}
+
 		if (dwnode == NULL) {
 			continue;
 		}
 		
-		if ((socksd = tcp_socket()) < 0) {
-			perror("downloader_func error - socket failed");
-//			write_err(dwinfo->
+		if (open_connection(dwnode) < 0) {
+			fprintf(stderr, "downloader_func error - open_connection failed\n");
+			kill_connection(dwinfo, dwnode);
+			free(dwnode);
+			dwnode = NULL;
 			continue;
 		}
-		
-		if (tcp_connect(socksd, &dwinfo->addrto) < 0) {
-			perror("downloader_func error - tcp_connect failed");
-			continue;
-		}
-		
-		//MANDARE PACCHETTO GET CON MD5
-		struct packet get_pck;
-		new_get_packet(&get_pck,0, dwnode->md5,MD5_DIGEST_LENGTH,0);
-		
-		if(send_packet_tcp(socksd, &get_pck) < 0 ){
+
+		printf("Connessione accettata\n");
+
+		new_get_packet(&send_pck, 0, (char *)dwnode->file_info.md5, MD5_DIGEST_LENGTH, 0);
+		if (send_packet_tcp(dwnode->socksd, &send_pck) < 0 ){
 			fprintf(stderr,"downloader_func error - send_packet_tcp failed");	
+			kill_connection(dwinfo, dwnode);
+			free(dwnode);
+			dwnode = NULL;
+			continue; 
 		}
 		
-		if ((n = read(socksd, buf, MAX_LINE + 9)) < 0) {
-			perror("bad read");
-			return 1;
+		if ((i = recv_packet_tcp(dwnode->socksd, &recv_pck)) < 0) {
+			fprintf(stderr, "downloader_func error - rcv_packet_tcp failed\n");
+			kill_connection(dwinfo, dwnode);
+			free(dwnode);
+			dwnode = NULL;
+			continue; 
+		} else if (i == 0) {
+			printf("Connection close by peer\n");
+			kill_connection(dwinfo, dwnode);
+			free(dwnode);
+			dwnode = NULL;
+			continue;
 		}
 
-		printf("letti %d bytes\n", n);
-
-		if (strncmp(buf, "INF", 3)) {
-			printf("unknown operation\n");
-			return 1;
+		if (strncmp(recv_pck.cmd, CMD_GET, CMD_STR_LEN)) {
+			fprintf(stderr, "packet not expected\n");
+			kill_connection(dwinfo, dwnode);
+			free(dwnode);
+			dwnode = NULL;
+			continue; 
 		}
 
-		int i;
-		tmpch = strstr(buf + 4, "\n");
-		if (tmpch == NULL) {
-			perror("bad strstr\n");
-			return 1;
+		if (fill_file_info(&dwnode->file_info, &recv_pck) < 0) {
+			fprintf(stderr, "downloader_func error - fill_file_info failed\n");
+			kill_connection(dwinfo, dwnode);
+			free(dwnode);
+			dwnode = NULL;
+			continue; 
 		}
-		
-		i = (int)(tmpch - buf - 4);
-		strncpy(name, buf + 4, i);
-		name[i] = 0;
-		i += 5;
-		printf("name: %s\n", name);
 
+		print_file_info(&dwnode->file_info);
 
-		int j;
-
-		memcpy(md5, buf + i, 16);
-
-		i += 16;
-		print_as_hex(md5, 16);
-		printf("\n");
-
-		int nchunk;
-		int flen;
-
-		flen = *((int *)(buf + i));
-		printf("file size: %d\n", flen);
-
-		i += sizeof(int);
-
-		nchunk = *((int *)(buf + i));
-		printf("chunk: %d\n", nchunk);
-
-
-		int fdpart;
-		int *my_chunk = NULL;
-		int *missing_chunk = NULL;
-		sprintf(partname, "./part/%s.part", name);
-
+		sprintf(partname, "%s/%s.part", PART_DIR, dwnode->file_info.filename);
 		printf("part file: %s\n", partname);
 
-
-		if ((fdpart = open(partname, O_RDWR)) < 0) {
-			if (errno == ENOENT) {
-				printf("File non esistente, lo creo\n");
-
-				if ((fdpart = open(partname, O_RDWR | O_CREAT, 0644)) < 0) {
-					perror("bad open");
-					return 1;
-				} else {
-					write(fdpart, buf + 4, n - 4);
-				}
-
-			} else {
-				perror("bad open");
-				return 1;
-			}
-		} else {
-			lseek(fdpart, strlen(name) + 1, SEEK_SET);
-			if (read(fdpart, md52, 16) != 16) {
-				fprintf(stderr, "bad file format\n");
-				return 1;
-			}
-
-			print_as_hex(md52, 16);
-			printf("\n");
-
-			if (memcmp(md5, md52, 16)) {
-				fprintf(stderr, "md5 doesn't match\n");
-				return 1;
-			}
-		
-			int nchunk2;
-			read(fdpart, (char *)&myflen, sizeof(int));
-			read(fdpart, (char *)&nchunk2, sizeof(int));
-			read(fdpart, (char *)&nmychunk, sizeof(int));
-
-			if (nchunk != nchunk2) {
-				fprintf(stderr, "Chunk number doesn't match\n");
-				return 1;
-			}
-
-			if (flen != myflen) {
-				fprintf(stderr, "File size doesn't match\n");
-				return 1;
-			}
-
-			printf("My-CHUNK: %d\n", nmychunk);
-
-			if (nmychunk == nchunk) {
-				printf("File già completo\n");
-				return 1;
-			}
-
-
-			nmisschunk = nchunk - nmychunk;
-			my_chunk = (int *)malloc(nmychunk * sizeof(int));
-			missing_chunk = (int *)malloc(nmisschunk * sizeof(int));
-
-			for (i = 0; i < nmychunk; i ++) {
-				read(fdpart, (char *)&my_chunk[i], sizeof(int));
-				printf("%d\n", my_chunk[i]);
-			}
-
-			int k = 0;
-			for (i = 0; i < nchunk; i ++) {
-				for (j = 0; j < nmychunk; j ++) {
-					if (i == my_chunk[j]) {
-						break;
-					}
-				}
-				if (j == nmychunk) {
-					missing_chunk[k] = i;
-					printf("missing_chunk[%d]: %d\n", k, missing_chunk[k]);
-					k ++;
-				}
-			}
+		if ((fdpart = open_file_part(partname, dwnode, &miss_chunk_number, &my_chunk_number)) < 0) {
+			fprintf(stderr, "downloader_func error - create_file_part failed\n");
+			kill_connection(dwinfo, dwnode);
+			free(dwnode);
+			dwnode = NULL;
+			continue; 
 		}
 
-		sprintf(tmpname, "./download/%s", name);
-
-		printf("file name: %s\n", tmpname);
-
-		if ((fd = open(tmpname, O_WRONLY | O_CREAT, 0644)) < 0) {
-			perror("bad open");
-			return 1;
+		if ((missing_chunk = get_missing_chunk(fdpart, dwnode->file_info.chunk_number, my_chunk_number, miss_chunk_number)) == NULL) {
+			fprintf(stderr, "downloader_func error - get_missing_chunk failed\n");
+			if (close(fdpart) < 0) {
+				perror("donwloader_fun error - close failed");
+			}
+			kill_connection(dwinfo, dwnode);
+			free(dwnode);
+			dwnode = NULL;
+			continue; 
+		}
+	
+		sprintf(buf, "%s/%s", DOWNLOAD_DIR, dwnode->file_info.filename);
+		if ((fd = open(buf, O_WRONLY | O_CREAT, 0644)) < 0) {
+			perror("donwloader_fun error - open failed");
+			if (close(fdpart) < 0) {
+				perror("donwloader_fun error - close failed");
+			}
+			kill_connection(dwinfo, dwnode);
+			free(dwnode);
+			dwnode = NULL;
+			continue; 
 		}
 
-		//int mychunK = 0;
-
-		if (missing_chunk == NULL) {
-			for (j = 0; j < nchunk; j ++) {
-			
-				if (j == nchunk - 1) {
-					printf("CIAO\n");
-				}
-				strncpy(buf, "GET ", 4);
-				memcpy(buf + 4, (char *)&j, sizeof(int));
-
-				write(socksd, buf, sizeof(int) + 4);
-
-				while ((n = read(socksd, buf, MAX_LINE + 9)) > 0) {
-					if (strncmp("DAT", buf, 3)) {
-						printf("bad command\n");
-						return 1;
-					}
-				
-					if (*((int *)(buf + 4)) != j) {
-						printf("bad chunk\n");
-						return 1;
-					}
-
-					write(fd, buf + 9, n - 9);
-
-					if (buf[8] == 0) {
-					
-						lseek(fdpart, strlen(name) + 17 + sizeof(int) + sizeof(int), SEEK_SET);
-						nmychunk ++;
-						tmpch = (char *)&nmychunk;
-						write(fdpart, tmpch, sizeof(int));
-
-						lseek(fdpart, 0, SEEK_END);
-						tmpch = (char *)&j;
-						write(fdpart, tmpch, sizeof(int));
-
-						break;
-					}
-			
-				}
+		if (download(fd, fdpart, partname, dwnode, missing_chunk, miss_chunk_number, my_chunk_number) < 0) {
+			fprintf(stderr, "downloader_func error - download failed\n");
+			if (close(fdpart) < 0 || close(fd) < 0) {
+				perror("downlaoder_func error - close failed");
 			}
-
-			if (close(socksd) < 0) {
-				perror("bad close");
-				return 1;
-			}
-
-			if (lseek(fd, 0, SEEK_END) == flen && nmychunk == nchunk) {
-				if (unlink(partname) < 0) {
-					perror("bad unlink");
-					return 1;
-				}
-			}
-		} else {
-			for (j = 0; j < nmisschunk; j ++) {
-				strncpy(buf, "GET ", 4);
-				memcpy(buf + 4, (char *)&missing_chunk[j], sizeof(int));
-				write(socksd, buf, sizeof(int) + 4);
-				lseek(fd, missing_chunk[j] * CHUNK_SIZE, SEEK_SET);
-				while ((n = read(socksd, buf, MAX_LINE + 9)) > 0) {
-					buf[n] = 0;
-					if (strncmp("DAT", buf, 3)) {
-						printf("bad command\n");
-						return 1;
-					}
-					if (*((int *)(buf + 4)) != missing_chunk[j]) {
-						printf("bad chunk\n");
-						return 1;
-					}
-					write(fd, buf + 9, n - 9);
-					if (buf[8] == 0) {
-						lseek(fdpart, strlen(name) + 17 + sizeof(int) + sizeof(int), SEEK_SET);
-						nmychunk ++;
-						tmpch = (char *)&nmychunk;
-						write(fdpart, tmpch, sizeof(int));
-						lseek(fdpart, 0, SEEK_END);
-						tmpch = (char *)&missing_chunk[j];
-						write(fdpart, tmpch, sizeof(int));
-						break;
-					}			
-				}
-			}
-
-			if (close(socksd) < 0) {
-				perror("bad close");
-				return 1;
-			}
-
-			if (lseek(fd, 0, SEEK_END) == flen && nmychunk == nchunk) {
-				if (unlink(partname) < 0) {
-					perror("bad unlink");
-					return 1;
-				}
-			}
+			kill_connection(dwinfo, dwnode);
+			free(dwnode);
+			dwnode = NULL;
+			continue;
 		}
 
 
+		if (close_sock(dwnode->socksd) < 0) {
+			perror("downloader_func erroe - close_sock failed");
+		}	
+
+		free(dwnode);
+		dwnode = NULL;
 	}
+
+}
+
+int download(int fd, int fdpart, const char *partname, const struct transfer_node *dwnode, const int *missing_chunk, int miss_chunk_number, int my_chunk_number) {
+	int i;
+
+	for (i = 0; i < miss_chunk_number; i ++) {
+		if (get_chunk(fd, fdpart, dwnode->socksd, missing_chunk[i]) < 0) {
+			fprintf(stderr, "download error - get_chunk failed\n");
+			return -1;
+		}
+
+		my_chunk_number ++;
+		if (write_filepart(fdpart, missing_chunk[i], my_chunk_number, dwnode->file_info.filename) < 0) {
+			fprintf(stderr, "downloader_func error - write_filepart failed\n");
+			return -1;
+		}
+	}
+
+
+	if (lseek(fd, 0, SEEK_END) == dwnode->file_info.file_size && my_chunk_number == dwnode->file_info.chunk_number) {
+		printf("FILE COMPLETO\n");
+		if (unlink(partname) < 0) {
+			perror("downlaod error - unlink failed");
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+int write_filepart(int fdpart, int missing_chunk, int my_chunk_number, const char *filename) {
+	lseek(fdpart, strlen(filename) + MD5_DIGEST_LENGTH + 2 * sizeof(int) + 1, SEEK_SET);
+	if (write(fdpart, (char *)&my_chunk_number, sizeof(int)) < 0) {
+		perror("write_filepart error - write failed");
+		return -1;
+	}
+	lseek(fdpart, 0, SEEK_END);
+	if (write(fdpart, (char *)&missing_chunk, sizeof(int)) < 0) {
+		perror("write_filepart error - write failed");
+		return -1;
+	}
+
+	return 0;
+}
+
+int get_chunk(int fd, int fdpart, int socksd, int missing_chunk) {
+	struct packet send_pck, recv_pck;
+	int n;
+
+	new_get_packet(&send_pck, missing_chunk, NULL, 0, 1); 
+	if (send_packet_tcp(socksd, &send_pck) < 0) {
+		fprintf(stderr, "get_chunk error - send_packet_tcp failed\n");
+		return -1;
+	}
+
+	lseek(fd, missing_chunk * CHUNK_SIZE, SEEK_SET);
+	while ((n = recv_packet_tcp(socksd, &recv_pck)) > 0) {
+		if (strncmp(recv_pck.cmd, CMD_DATA, CMD_STR_LEN)) {
+			printf("get_chunk error - packet not expected\n");
+			return -1;
+		}
+
+		if (recv_pck.index != missing_chunk) {
+			printf("get_chunk error - invalid chunk number\n");
+			return -1;
+		}
+
+		if (write(fd, recv_pck.data, recv_pck.data_len) < 0) {
+			perror("get_chunk error - write failed");
+			return -1;
+		}
+
+		if (!is_set_flag(&recv_pck, PACKET_FLAG_NEXT_CHUNK)) {
+			printf("Chunk %d completato\n", missing_chunk);
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
+int kill_connection(struct downloader_info *dwinfo, struct transfer_node *dwnode) {
+	if (write_err(dwinfo->th_pipe, dwinfo->pipe_mutex, "GET") < 0) {
+		fprintf(stderr, "kill_connection error - write_err failed\n");
+		return -1;
+	}
+
+	if (close_sock(dwnode->socksd) < 0) {
+		perror("kill_connection error - close_sock failed");
+		return -1;
+	}
+
+	dwnode->socksd = -1;
+	
+	return 0;
+}
+
+
+int fill_file_info(struct transfer_info *file_info, const struct packet *recv_pck) {
+	int offset;
+
+	strcpy(file_info->filename, recv_pck->data);
+	offset = strlen(recv_pck->data);
+	offset ++;
+	if (memcmp(file_info->md5, recv_pck->data + offset, MD5_DIGEST_LENGTH)) {
+		fprintf(stderr, "fill_file_info error - md5 doesn't match\n");
+		return -1;
+	}
+	offset += MD5_DIGEST_LENGTH;
+	file_info->file_size = *((int *)(recv_pck->data + offset));
+	offset += sizeof(int);
+	file_info->chunk_number = *((int *)(recv_pck->data + offset));
+	offset += sizeof(int);
+
+	return 0;
+}
+
+int open_connection(struct transfer_node *dwnode) {
+	if ((dwnode->socksd = tcp_socket()) < 0) {
+		perror("downloader_func error - socket failed");
+		return -1;
+	}
+
+	if (tcp_connect(dwnode->socksd, &dwnode->addrto) < 0) {
+		perror("downloader_func error - tcp_connect failed");
+		return -1;
+	}
+
+	return 0;
+}
+
+int create_file_part(const char *partname, const struct transfer_node *dwnode, int *miss_chunk_number, int *my_chunk_number) {
+	char buf[256 + INFO_STR_LEN];
+	int fdpart;
+	int offset;
+
+	if ((fdpart = open(partname, O_RDWR | O_CREAT, 0644)) < 0) {
+		perror("create_file_part error - open failed");
+		return -1;
+	} else {
+		*miss_chunk_number = dwnode->file_info.chunk_number;
+		*my_chunk_number = 0;
+		strcpy(buf, dwnode->file_info.filename);
+		offset = strlen(dwnode->file_info.filename);
+		buf[offset] = 0;
+		offset ++;
+		memcpy(buf + offset, dwnode->file_info.md5, MD5_DIGEST_LENGTH);
+		offset += MD5_DIGEST_LENGTH;
+		memcpy(buf + offset, (char *)&dwnode->file_info.file_size, sizeof(dwnode->file_info.file_size));
+		offset += sizeof(dwnode->file_info.file_size);
+		memcpy(buf + offset, (char *)&dwnode->file_info.chunk_number, sizeof(dwnode->file_info.chunk_number));
+		offset += sizeof(dwnode->file_info.chunk_number);
+		memcpy(buf + offset, (char *)my_chunk_number, sizeof(int));
+		offset += sizeof(int);
+		if (write(fdpart, buf, offset) < 0) {
+			perror("create_file_part error - write failed");
+			if (close(fdpart) < 0) {
+				perror("create_file_part error - close failed");
+			}
+			return -1;
+		}
+	}
+
+	return fdpart;
+
+}
+
+int load_file_part(int fdpart, const char *partname, const struct transfer_node *dwnode, int *miss_chunk_number, int *my_chunk_number) {
+	char buf[INFO_STR_LEN];
+	int nread;
+
+	lseek(fdpart, strlen(dwnode->file_info.filename) + 1, SEEK_SET);
+	if ((nread = read(fdpart, buf, INFO_STR_LEN)) < 0) {
+		perror("create_file_part error - read failed haha");
+		if (close(fdpart) < 0) {
+			perror("create_file_part error - close failed");
+		}
+		return -1;
+	} else if (nread != INFO_STR_LEN) {
+		fprintf(stderr, "create_file_part error - bad file format haha\n");
+		if (close(fdpart) < 0) {
+			perror("create_file_part error - close failed");
+		}
+		return -1;
+	}
+
+	if (memcmp(dwnode->file_info.md5, buf, MD5_DIGEST_LENGTH)) {
+		fprintf(stderr, "create_file_part error - md5 doesn't match\n");
+		if (close(fdpart) < 0) {
+			perror("create_file_part error - close failed");
+		}
+		return -1;
+	}
+
+	if (dwnode->file_info.file_size != *((int *)(buf + MD5_DIGEST_LENGTH))) {
+		fprintf(stderr, "create_file_part error - file size doesn't match\n");
+		if (close(fdpart) < 0) {
+			perror("create_file_part error - close failed");
+		}
+		return -1;
+	}
+
+	if (dwnode->file_info.chunk_number != *((int *)(buf + MD5_DIGEST_LENGTH + sizeof(int)))) {
+		fprintf(stderr, "create_file_part error - chunk number doesn't match\n");
+		if (close(fdpart) < 0) {
+			perror("create_file_part error - close failed");
+		}
+		return -1;
+	}
+
+	*my_chunk_number = *((int *)(buf + MD5_DIGEST_LENGTH + sizeof(int) * 2));
+	*miss_chunk_number = dwnode->file_info.chunk_number - *my_chunk_number;
+
+	return 0;
+}
+
+int open_file_part(const char *partname, const struct transfer_node *dwnode, int *miss_chunk_number, int *my_chunk_number) {
+	int fdpart;
+
+	if ((fdpart = open(partname, O_RDWR)) < 0) {
+		if (errno == ENOENT) {
+			if ((fdpart = create_file_part(partname, dwnode, miss_chunk_number, my_chunk_number)) < 0) {
+				fprintf(stderr, "open_file_part error - create_file_part failed\n");
+				return -1;
+			}
+		} else {
+			perror("create_file_part error - open failed");
+			return -1;
+		}
+	} else {
+		if (load_file_part(fdpart, partname, dwnode, miss_chunk_number, my_chunk_number) < 0) {
+			fprintf(stderr, "open_file_part error - load_file_part failed\n");
+			return -1;
+		}
+	}
+
+	return fdpart;
+}
+
+int *get_missing_chunk(int fdpart, int chunk_number, int my_chunk_number, int miss_chunk_number) {
+	int *my_chunk = NULL, *missing_chunk = NULL;
+	int i, j, k, nread;
+
+	if (my_chunk_number > 0) {
+		my_chunk = (int *)malloc(my_chunk_number * sizeof(int));
+	}
+	missing_chunk = (int *)malloc(miss_chunk_number * sizeof(int));
+
+	for (i = 0; i < my_chunk_number; i ++) {
+		if ((nread = read(fdpart, (char *)&my_chunk[i], sizeof(int))) < 0) {
+			perror("get_missing_chunk error - read failed");
+			free(my_chunk);
+			free(missing_chunk);
+			return NULL;
+		} else if (nread != sizeof(int)) {
+			fprintf(stderr, "get_missing_chunk error - bad file format\n");
+			free(my_chunk);
+			free(missing_chunk);
+			return NULL;
+		}		
+	}
+
+	k = 0;
+	for (i = 0; i < chunk_number; i ++) {
+		for (j = 0; j < my_chunk_number; j ++) {
+			if (i == my_chunk[j]) {
+				break;
+			}
+		}
+		if (j == my_chunk_number) {
+			missing_chunk[k] = i;
+			k ++;
+		}
+	}
+
+	free(my_chunk);
+	return missing_chunk;
+
 }
 
 int add_download(const struct sockaddr_in *addr, const unsigned char *md5) {
@@ -310,11 +439,16 @@ int add_download(const struct sockaddr_in *addr, const unsigned char *md5) {
 }
 
 int downloader_init(int nthread, int th_pipe, pthread_mutex_t *mutex) {
-	dw_pool = (struct downloader_node *)malloc(sizeof(struct downloader_node *) * nthread);
+	int i;
 
+	if (dw_pool != NULL) {
+		return 0;
+	}
+
+	dw_pool = (struct downloader_info *)malloc(sizeof(struct downloader_info) * nthread);
 	for (i = 0; i < nthread; i ++) {
-		dw_pool[i].th_pipe = pipe;
-		dw_pool[i].pipe_mutex = murtex;
+		dw_pool[i].th_pipe = th_pipe;
+		dw_pool[i].pipe_mutex = mutex;
 		if (downloader_run(&dw_pool[i]) < 0) {
 			fprintf(stderr, "downloader_init error - downloader_run failed\n");
 			return -1;
@@ -334,4 +468,4 @@ int downloader_run(struct downloader_info *dwinfo) {
 
 	return 0;
 }
-*/
+

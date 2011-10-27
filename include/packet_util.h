@@ -13,23 +13,23 @@
 
 #define PACKET_FLAG_WHOHAS_NAME 1
 #define PACKET_FLAG_WHOHAS_MD5 2
-#define PACKET_FLAG_WHOHAS_QUERY 4 //SET = QUERY UNSET = RESPONSE
+#define PACKET_FLAG_QUERY 4 //SET = QUERY UNSET = RESPONSE
 #define PACKET_FLAG_NEXT_CHUNK 8
 
 struct packet {
-	char  cmd[CMD_STR_LEN];
+	char cmd[CMD_STR_LEN];
 	char flag;
 	unsigned short index;
 	short TTL;
 	unsigned short data_len;
-	char  data[MAX_PACKET_DATA_LEN];
+	char data[MAX_PACKET_DATA_LEN];
 };
 
 unsigned short get_index();
 
 void init_index();
 
-void new_packet(struct packet *to_create, char *cmd, unsigned short index, char *data, unsigned short data_len, short ttl);
+void new_packet(struct packet *to_create, const char *cmd, unsigned short index, const char *data, unsigned short data_len, short ttl);
 
 void new_join_packet(struct packet *pck, unsigned short index);
 
@@ -67,7 +67,7 @@ void pckcpy(struct packet *dest, const struct packet *src);
 
 int send_packet_tcp(int socksd, const struct packet *pck);
 	
-void add_near_to_packet(struct packet *pck,const char * data, int data_len);
+void add_near_to_packet(struct packet *pck, const char * data, int data_len);
 
 void set_whohas_name_flag(struct packet *pck);
 
@@ -87,18 +87,20 @@ void set_flag(struct packet *pck, char flag);
 
 void unset_flag(struct packet *pck, char flag);
 
-void set_whohas_query_flag(struct packet *pck);
+void set_query_flag(struct packet *pck);
 
-void unset_whohas_query_flag(struct packet *pck);
+void unset_query_flag(struct packet *pck);
 
-void new_whs_query_packet(struct packet *pck, unsigned short index, char *data, unsigned short data_len, short ttl);
+void new_whs_query_packet(struct packet *pck, unsigned short index, const char *data, unsigned short data_len, short ttl);
 
-void new_whs_query5_packet(struct packet *pck, unsigned short index, char *data, unsigned short data_len, short ttl);
+void new_whs_query5_packet(struct packet *pck, unsigned short index, const char *data, unsigned short data_len, short ttl);
 
-void new_whs_res_packet(struct packet *pck, unsigned short index, char *data, unsigned short data_len, short ttl);
+void new_whs_res_packet(struct packet *pck, unsigned short index, const char *data, unsigned short data_len, short ttl);
 
-void new_whs_res5_packet(struct packet *pck, unsigned short index, char *data, unsigned short data_len, short ttl);
+void new_whs_res5_packet(struct packet *pck, unsigned short index, const char *data, unsigned short data_len, short ttl);
 
 int recv_packet_tcp(int socksd, struct packet *pck);
+
+void new_get_packet(struct packet *pck, unsigned short index, const char *data, unsigned short data_len, short ttl);
 
 #endif

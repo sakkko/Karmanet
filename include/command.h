@@ -12,6 +12,7 @@
 
 #define CMD_WHOHAS "WHO"
 #define CMD_GET "GET"
+#define CMD_DATA "DAT"
 
 #define CMD_UPDATE_FILE_LIST "UFL"
 

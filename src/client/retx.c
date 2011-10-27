@@ -2,31 +2,6 @@
 
 pthread_mutex_t retx_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-int write_err(const struct retx_info *rtxinfo, char *msg) {
-	int rc;
-	char str[CMD_STR_LEN + 6];
-
-	snprintf(str, 10, "ERR %s\n", msg);
-	if ((rc = pthread_mutex_lock(rtxinfo->pipe_mutex)) != 0) {
-		fprintf(stderr, "write_err error - can't acquire lock on pipe: %s\n", strerror(rc));
-		return -1;
-	}
-	if (write(rtxinfo->retx_wr_pipe, str, strlen(str)) < 0) {
-		if ((rc = pthread_mutex_unlock(rtxinfo->pipe_mutex)) != 0) {
-			fprintf(stderr, "write_err error - can't release lock on pipe: %s\n", strerror(rc));
-			return -1;
-		}
-		perror("write_err error - can't write on pipe");
-		return -1;
-	}
-	if ((rc = pthread_mutex_unlock(rtxinfo->pipe_mutex)) != 0) {
-		fprintf(stderr, "write_err error - can't release lock on pipe: %s\n", strerror(rc));
-		return -1;
-	}
-
-	return 0;
-}
-
 void retx_func(void *args) {
 	struct retx_info *rtxinfo = (struct retx_info *)args;
 	char cmdstr[CMD_STR_LEN + 1];
@@ -57,7 +32,7 @@ void retx_func(void *args) {
 				cmdstr[CMD_STR_LEN] = 0;
 				printf("Pacchetto: INDEX=%u CMD=%s NRETX=%d COUNTDOWN %d\n", pck_node->pck.index, cmdstr, pck_node->nretx, pck_node->countdown);
 				if (pck_node->nretx == MAX_RETX || pck_node->errors == MAX_RETX) {
-					if (write_err(rtxinfo, cmdstr) < 0) {
+					if (write_err(rtxinfo->retx_wr_pipe, rtxinfo->pipe_mutex, cmdstr) < 0) {
 						fprintf(stderr, "retx_func error - write_err failed: %s\n", strerror(rc));
 						pthread_exit((void *)-1);
 					}

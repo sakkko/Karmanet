@@ -53,4 +53,6 @@ int diff(int fd_share, int fdnew, int fddiff, const char *share_dir, int flag);
 
 int create_diff(const char *share_dir);
 
+int get_filepath(char *filepath, char *filename, const unsigned char *md5);
+
 #endif

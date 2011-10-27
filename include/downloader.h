@@ -1,16 +1,7 @@
 #ifndef _DOWNLOADER_H
 #define _DOWNLOADER_H
 
-#include <stdio.h>
-#include <pthread.h>
-#include <sys/time.h>
-
-#include "inetutil.h"
-#include "packet_util.h"
-#include "transfer_list.h"
-#include "thread_util.h"
-
-#define TIME_TO_SLEEP 1
+#include "transfer.h"
 
 struct downloader_info {
 	pthread_t thread;
@@ -22,13 +13,30 @@ struct downloader_info *dw_pool;
 
 int downloader_init(int nthread, int th_pipe, pthread_mutex_t *pipe_mutex);
 
-int downloader_run(struct download_info *dwinfo);
+int downloader_run(struct downloader_info *dwinfo);
 
-void download_func(void *args);
+void downloader_func(void *args);
 
 int add_download(const struct sockaddr_in *addr, const unsigned char *md5);
 
-int write_err(const struct retx_info *rtxinfo, char *msg);
+int *get_missing_chunk(int fdpart, int chunk_number, int my_chunk_number, int miss_chunk_number);
 
+int create_file_part(const char *partname, const struct transfer_node *dwnode, int *miss_chunk_number, int *my_chunk_number);
+
+int open_connection(struct transfer_node *dwnode);
+
+int fill_file_info(struct transfer_info *file_info, const struct packet *recv_pck);
+
+int kill_connection(struct downloader_info *dwinfo, struct transfer_node *dwnode);
+
+int write_filepart(int fdpart, int missing_chunk, int my_chunk_number, const char *filename);
+
+int get_chunk(int fd, int fdpart, int socksd, int missing_chunk);
+
+int open_file_part(const char *partname, const struct transfer_node *dwnode, int *miss_chunk_number, int *my_chunk_number);
+
+int load_file_part(int fdpart, const char *partname, const struct transfer_node *dwnode, int *miss_chunk_number, int *my_chunk_number); 
+
+int download(int fd, int fdpart, const char *partname, const struct transfer_node *dwnode, const int *missing_chunk, int miss_chunk_number, int my_chunk_number);
 
 #endif

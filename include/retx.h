@@ -33,6 +33,4 @@ int retx_run(struct retx_info *rtxinfo);
 
 int mutex_send(int socksd, const struct sockaddr_in *addr, const struct packet *pck);
 
-int write_err(const struct retx_info *rtxinfo, char *msg);
-
 #endif

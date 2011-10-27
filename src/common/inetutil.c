@@ -1,5 +1,6 @@
 #include "inetutil.h"
 
+
 int tcp_socket(void) {
 	return socket(AF_INET, SOCK_STREAM, 0);
 }
@@ -46,6 +47,15 @@ int udp_recvfrom(int socksd, struct sockaddr_in *sad, socklen_t *addr_len, char 
 
 int udp_recv(int socksd, char *buf, int maxlen) {
 	return recvfrom(socksd, buf, maxlen, 0, NULL, NULL);
+}
+
+int close_sock(int socksd) {
+	if (socksd < 0) {
+		return 0;
+	} else {
+		return close(socksd);
+	}
+
 }
 
 void addrcpy(struct sockaddr_in *dest, const struct sockaddr_in *src) {

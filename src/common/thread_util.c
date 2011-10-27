@@ -1,13 +1,36 @@
 #include "thread_util.h"
 
-int rc;
+int write_err(int th_pipe, pthread_mutex_t *pipe_mutex, const char *msg) {
+	int rc;
+	char str[CMD_STR_LEN + 6];
 
+	snprintf(str, 10, "ERR %s\n", msg);
+	if ((rc = pthread_mutex_lock(pipe_mutex)) != 0) {
+		fprintf(stderr, "write_err error - can't acquire lock on pipe: %s\n", strerror(rc));
+		return -1;
+	}
+	if (write(th_pipe, str, strlen(str)) < 0) {
+		if ((rc = pthread_mutex_unlock(pipe_mutex)) != 0) {
+			fprintf(stderr, "write_err error - can't release lock on pipe: %s\n", strerror(rc));
+			return -1;
+		}
+		perror("write_err error - can't write on pipe");
+		return -1;
+	}
+	if ((rc = pthread_mutex_unlock(pipe_mutex)) != 0) {
+		fprintf(stderr, "write_err error - can't release lock on pipe: %s\n", strerror(rc));
+		return -1;
+	}
+
+	return 0;
+}
 
 /*
  * Funzione che lancia un thread, che eseguirà la funzione start_routine con parametri args.
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
 int thread_run(struct th_info *thinfo, void *(*start_routine)(void *), void *args) {
+	int rc;
 	pthread_attr_t attr;
 
 	if ((rc = pthread_attr_init(&attr)) != 0) {
@@ -42,7 +65,7 @@ int thread_run(struct th_info *thinfo, void *(*start_routine)(void *), void *arg
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
 int thread_stop(struct th_info *thinfo) {
-//	int ret_value;
+	int rc;
 
 	if ((rc = pthread_mutex_lock(&thinfo->mutex)) != 0) {
 		fprintf(stderr, "thread_stop error - can't acquire lock: %s\n", strerror(rc));
