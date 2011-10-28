@@ -13,7 +13,9 @@
 
 #define TIME_TO_SLEEP 1
 
-#define CHUNK_SIZE 16384
+#define CHUNK_SIZE 512000
+//#define CHUNK_SIZE 16384
+
 #define DOWNLOAD_DIR "../download"
 #define PART_DIR "../download/part"
 

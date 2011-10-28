@@ -39,8 +39,6 @@ int keyboard_handler(int udp_sock){
 
 	if (!strncmp(str, "leave", 5)) {
 		new_leave_packet(&pck, get_index());
-		memcpy(pck.data, (char *)&conf.tcp_port, sizeof(conf.tcp_port));
-		pck.data_len = sizeof(conf.tcp_port);
 		retx_send(udp_sock, &pinger.addr_to_ping, &pck);
 		state = ST_LEAVE_SENT;
 	} else if (!strncmp(str, "whohas_md5", 10)) {
@@ -93,6 +91,7 @@ int keyboard_handler(int udp_sock){
 			return 0;
 		}//get ip:port md5
 		
+		//TODO
 		char ip_str[15];
 		int i,ip_len = 0;
 		char md5_str[32];
@@ -154,33 +153,16 @@ int keyboard_handler(int udp_sock){
 }
 
 int init_transfer() {
-	struct sockaddr_in addr;
-
-	if (transfer_initialized) {
-		return 0;
-	}
-
-	if ((dw_listen_sock = tcp_socket()) < 0) {
-		perror("init_tranfer error - tcp_socket failed");
-		return -1;
-	}
-
-	set_addr_any(&addr, conf.tcp_port);
-	
-	if (inet_bind(dw_listen_sock, &addr) < 0) {
-		perror("init_tranfer error - inet_bind failed");
-		return -1;
-	}
 
 	if (listen(dw_listen_sock, BACKLOG) < 0) {
-		perror("init_transfer error - listen failed");
+		perror("init error - listen failed");
 		return -1;
 	}
 
 	fd_add(dw_listen_sock);
 
-	if (conf.tcp_port == 0) {
-		conf.tcp_port = get_local_port(dw_listen_sock);
+	if (transfer_initialized) {
+		return 0;
 	}
 
 	if (downloader_init(conf.max_download, thread_pipe[1], &pipe_mutex) < 0) {
@@ -203,6 +185,7 @@ int init_transfer() {
 */
 int init(int udp_sock) {
 	struct sigaction actions;
+	struct sockaddr_in addr;
 
 	if (pipe(thread_pipe) < 0) {
 		perror("init error - can't initialize pipe");
@@ -219,10 +202,30 @@ int init(int udp_sock) {
 		return -1;
 	}
 
+	if ((dw_listen_sock = tcp_socket()) < 0) {
+		perror("init_tranfer error - tcp_socket failed");
+		return -1;
+	}
+
+	set_addr_any(&addr, conf.tcp_port);
+	
+	if (inet_bind(dw_listen_sock, &addr) < 0) {
+		perror("init_tranfer error - inet_bind failed");
+		return -1;
+	}
+
+	if (conf.tcp_port == 0) {
+		conf.tcp_port = get_local_port(dw_listen_sock);
+	} else {
+		conf.tcp_port = htons(conf.tcp_port);
+	}
+
 
 	bserror = 0;
 	transfer_initialized = 0;
 	state = 0;
+	nsock = 0;
+
 	fd_init();	
 	fd_add(fileno(stdin));
 	fd_add(udp_sock);
@@ -391,9 +394,9 @@ int add_sp_file(unsigned long ip, unsigned short port) {
 		buf[MD5_DIGEST_LENGTH + n] = 0;
 		
 		if (*buf == '+') {
-			insert_file(buf + MD5_DIGEST_LENGTH + 1, (const unsigned char *)(buf + 1), ip, port);
+			insert_file(buf + MD5_DIGEST_LENGTH + 1, (unsigned char *)(buf + 1), ip, port);
 		} else {
-			remove_file(ip, port, buf + MD5_DIGEST_LENGTH + 1, (const unsigned char *)buf + 1);
+			remove_file(ip, port, buf + MD5_DIGEST_LENGTH + 1, (unsigned char *)(buf + 1));
 		}
 
 	}
@@ -499,15 +502,15 @@ int send_share(int udp_sock, const struct sockaddr_in *addr) {
  */
 int leave_handler(int udp_sock, const struct packet *recv_pck, const struct sockaddr_in *bs_addr, const struct sockaddr_in *addr) {
 	struct packet tmp_pck;
-	unsigned short port;
+	struct node *tmp_node;
 
 	if (is_sp) {
-		printf("Elimino peer %s\n", inet_ntoa(addr->sin_addr));
-		remove_peer(addr);
-		port = *((unsigned short *)recv_pck->data);
-		remove_all_file(addr->sin_addr.s_addr, port);
+		printf("Elimino peer %s:%u\n", inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
+		if ((tmp_node = get_node_peer(addr)) != NULL) {
+			remove_all_file(addr->sin_addr.s_addr, ((struct peer_node *)tmp_node->data)->dw_port);
+			remove_peer_node(tmp_node);
+		}
 		new_ack_packet(&tmp_pck, recv_pck->index);
-
 		if (mutex_send(udp_sock, addr, &tmp_pck) < 0) {
 			fprintf(stderr, "leave_handler error - mutex_send failed\n");
 			return -1;
@@ -554,18 +557,98 @@ void write_help() {
 	}
 }
 
+int whohas_request_handler_name(int udp_sock, const struct packet *pck, const struct sockaddr_in *addr) {
+	struct addr_node *results;
+	struct packet send_pck;
+	char buf[MAX_PACKET_DATA_LEN];
+	int offset;
+
+	results = get_by_name(pck->data + ADDR_STR_LEN);
+	strcpy(buf, pck->data + ADDR_STR_LEN);
+	buf[pck->data_len - ADDR_STR_LEN] = '\n';
+	offset = pck->data_len - ADDR_STR_LEN + 1;
+
+	while (results != NULL) {
+		if (offset + ADDR_STR_LEN + MD5_DIGEST_LENGTH < MAX_PACKET_DATA_LEN) {
+			addr2str(buf + offset, results->ip, results->port);
+			offset += ADDR_STR_LEN;
+			memcpy(buf + offset, results->md5->md5, MD5_DIGEST_LENGTH);
+			offset += MD5_DIGEST_LENGTH;
+			if (results->next == NULL) {
+				new_whs_res_packet(&send_pck, pck->index, buf, offset, 1);
+				if (retx_send(udp_sock, addr, &send_pck) < 0) {
+					fprintf(stderr, "whohas_request_handler_name error - retx_send failed\n");
+					return -1;
+				}
+				break;
+			} else {
+				results = results->next;	
+			}
+		} else {
+			new_whs_res_packet(&send_pck, pck->index, buf, offset, 1);
+			if (retx_send(udp_sock, addr, &send_pck) < 0) {
+				fprintf(stderr, "whohas_request_handler_name error - retx_send failed\n");
+				return -1;
+			}
+			offset = pck->data_len - ADDR_STR_LEN + 1;
+		}
+
+	}
+
+	return 0;
+}
+
+int whohas_request_handler_md5(int udp_sock, const struct packet *pck, const struct sockaddr_in *addr) {
+	struct md5_info *results;
+	struct packet send_pck;
+	char buf[MAX_PACKET_DATA_LEN];
+	int offset;
+
+	print_as_hex((unsigned char *)(pck->data + ADDR_STR_LEN), 16);
+	results = get_by_md5((unsigned char *)(pck->data + ADDR_STR_LEN));
+	strcpy(buf, pck->data + ADDR_STR_LEN);
+	buf[pck->data_len - ADDR_STR_LEN] = '\n';
+	offset = pck->data_len - ADDR_STR_LEN + 1;
+
+	while (results != NULL) {
+		if (offset + ADDR_STR_LEN + strlen(results->info->file->name) < MAX_PACKET_DATA_LEN) {
+			addr2str(buf + offset, results->info->addr->ip, results->info->addr->port);
+			offset += ADDR_STR_LEN;
+			memcpy(buf + offset, results->info->file->name, strlen(results->info->file->name));
+			offset += strlen(results->info->file->name);
+			buf[offset] = '\n';
+			offset++;
+			if (results->next == NULL) {
+				new_whs_res5_packet(&send_pck, pck->index, buf, offset, 1);
+				if (retx_send(udp_sock, addr, &send_pck) < 0) {
+					fprintf(stderr, "whohas_request_handler_md5 error - retx_send failed\n");
+					return -1;
+				}
+				break;
+			} else {
+				results = results->next;	
+			}
+		} else {
+			new_whs_res5_packet(&send_pck, pck->index, buf, offset, 1);
+			if (retx_send(udp_sock, addr, &send_pck) < 0) {
+				fprintf(stderr, "whohas_request_handler_md5 error - retx_send failed\n");
+				return -1;
+			}
+			offset = pck->data_len - ADDR_STR_LEN + 1;
+		}
+
+	}
+
+	return 0;
+}
 
 /*
  * Gestisce il messaggio di richiesta whohas, inoltra la richiesta sulla rete overlay
  * e invia i risultati al peer che ha fatto la richiesta.
  */
 int whohas_request_handler(int socksd, int udp_sock, const struct packet *pck, const struct sockaddr_in *addr, int overlay) {
-	struct addr_node *results;
-	//struct md5_info *res_md5;
-	struct packet tmp_pck, send_pck;
-	char buf[MAX_PACKET_DATA_LEN];
-	int offset;
-	printf("request handler\n");
+	struct packet tmp_pck;
+
 	pckcpy(&tmp_pck, pck);
 	if (overlay == 0) {
 		//il whohas è arrivato da un peer (socket udp)
@@ -575,7 +658,6 @@ int whohas_request_handler(int socksd, int udp_sock, const struct packet *pck, c
 	}
 	
 	tmp_pck.data[tmp_pck.data_len] = 0;
-
 
 	if (flood_overlay(&tmp_pck, socksd) < 0) {
 		fprintf(stderr, "whohas_handler error - flood_overlay failed\n");
@@ -587,77 +669,86 @@ int whohas_request_handler(int socksd, int udp_sock, const struct packet *pck, c
 	}
 
 	if (is_set_flag(&tmp_pck, PACKET_FLAG_WHOHAS_NAME)) {
-		results = get_by_name(tmp_pck.data + ADDR_STR_LEN);
-		strcpy(buf, tmp_pck.data + ADDR_STR_LEN);
-		buf[tmp_pck.data_len - ADDR_STR_LEN] = '\n';
-		offset = tmp_pck.data_len - ADDR_STR_LEN + 1;
-
-		while (results != NULL) {
-			if (offset + ADDR_STR_LEN + MD5_DIGEST_LENGTH < MAX_PACKET_DATA_LEN) {
-				addr2str(buf + offset, results->ip, results->port);
-				offset += ADDR_STR_LEN;
-				memcpy(buf + offset, results->md5->md5, MD5_DIGEST_LENGTH);
-				offset += MD5_DIGEST_LENGTH;
-				if (results->next == NULL) {
-					new_whs_res_packet(&send_pck, tmp_pck.index, buf, offset, 1);
-					if (retx_send(udp_sock, addr, &send_pck) < 0) {
-						fprintf(stderr, "whohas_handler error - retx_send failed\n");
-						return -1;
-					}
-					break;
-				} else {
-					results = results->next;	
-				}
-			} else {
-				new_whs_res_packet(&send_pck, tmp_pck.index, buf, offset, 1);
-				if (retx_send(udp_sock, addr, &send_pck) < 0) {
-					fprintf(stderr, "whohas_handler error - retx_send failed\n");
-					return -1;
-				}
-				offset = tmp_pck.data_len - ADDR_STR_LEN + 1;
-			}
-
+		if (whohas_request_handler_name(udp_sock, &tmp_pck, addr) < 0) {
+			fprintf(stderr, "whohas_request_handler error - whohas_request_handler_name failed\n");
+			return -1;
 		}
 	} else if (is_set_flag(&tmp_pck, PACKET_FLAG_WHOHAS_MD5)) {
-		/*
-		print_as_hex(tmp_pck.data + ADDR_STR_LEN,16);
-		res_md5 = get_by_md5((unsigned char *)(tmp_pck.data + ADDR_STR_LEN));
-		strcpy(buf, tmp_pck.data + ADDR_STR_LEN);
-		buf[tmp_pck.data_len - ADDR_STR_LEN] = '\n';
-		offset = tmp_pck.data_len - ADDR_STR_LEN + 1;
-		
-		while (res_md5 != NULL) {
-			if (offset + ADDR_STR_LEN + strlen(res_md5->info->file->name) < MAX_PACKET_DATA_LEN) {
-				addr2str(buf + offset, res_md5->info->addr->ip, res_md5->info->addr->port);
-				offset += ADDR_STR_LEN;
-				printf("Aggiungo %s\n",res_md5->info->file->name);
-				memcpy(buf + offset, res_md5->info->file->name, strlen(res_md5->info->file->name));
-				offset += strlen(res_md5->info->file->name);
-				buf[offset] = '\n';
-				offset++;
-				if (res_md5->next == NULL) {
-					new_whs_res5_packet(&send_pck, tmp_pck.index, buf, offset, 1);
-					if (retx_send(udp_sock, addr, &send_pck) < 0) {
-						fprintf(stderr, "whohas_handler error - retx_send failed\n");
-						return -1;
-					}
-					break;
-				} else {
-					res_md5 = res_md5->next;	
-				}
-			} else {
-				new_whs_res5_packet(&send_pck, tmp_pck.index, buf, offset, 1);
-				if (retx_send(udp_sock, addr, &send_pck) < 0) {
-					fprintf(stderr, "whohas_handler error - retx_send failed\n");
-					return -1;
-				}
-				offset = tmp_pck.data_len - ADDR_STR_LEN + 1;
-			}
-
+		if (whohas_request_handler_md5(udp_sock, &tmp_pck, addr) < 0) {
+			fprintf(stderr, "whohas_request_handler error - whohas_request_handler_md5 failed\n");
+			return -1;
 		}
-		*/
 	}
 	
+
+	return 0;
+}
+
+int whohas_response_handler_name(const struct packet *pck) {
+	char *tmp;
+	int offset;
+	struct in_addr addr;
+	unsigned short port;
+	char md5_hex[MD5_DIGEST_LENGTH * 2 + 1];
+
+	if ((tmp = strstr(pck->data, "\n")) == NULL) {
+		fprintf(stderr, "whohas_response_handler_name error - bad packet format\n");
+		return -1;
+	}
+	*tmp = 0;
+
+	offset = tmp - pck->data + 1;
+
+	while (offset < pck->data_len) {
+		addr.s_addr = btol(pck->data + offset);
+		offset += sizeof(long);
+		port = btos(pck->data + offset);
+		offset += sizeof(short);
+		to_hex(md5_hex, (unsigned char *)(pck->data + offset));
+		md5_hex[MD5_DIGEST_LENGTH * 2] = 0;
+		offset += MD5_DIGEST_LENGTH;
+
+		printf("%s:%u %s %s\n", inet_ntoa(addr), ntohs(port), md5_hex, pck->data);
+	}
+
+	return 0;
+}
+
+int whohas_response_handler_md5(const struct packet *pck) {
+	char *tmp;
+	char md5_hex[MD5_DIGEST_LENGTH * 2 + 1];
+	char name[256];
+	struct in_addr addr;
+	unsigned short port;
+	int offset, len;
+
+	if ((tmp = strstr(pck->data, "\n")) == NULL) {
+		fprintf(stderr, "whohas_handler error - bad packet format\n");
+		return -1;
+	}
+
+	to_hex(md5_hex, (unsigned char *)(pck->data));
+	md5_hex[MD5_DIGEST_LENGTH * 2] = 0;	
+	*tmp = 0;
+	offset = tmp - pck->data + 1;
+
+	while (offset < pck->data_len) {
+		addr.s_addr = btol(pck->data + offset);
+		offset += sizeof(long);
+		port = btos(pck->data + offset);
+		offset += sizeof(short);
+
+		if ((tmp = strstr(pck->data + offset, "\n")) == NULL) {
+			fprintf(stderr, "whohas_handler error - bad packet format\n");
+			return -1;
+		}
+
+		len = (int)(tmp - (pck->data + offset));
+		strncpy(name, pck->data + offset, len);
+		name[len] = 0;
+		offset += len + 1;
+		printf("%s:%u %s %s\n", inet_ntoa(addr), ntohs(port), md5_hex, name);
+	}
 
 	return 0;
 }
@@ -666,16 +757,8 @@ int whohas_request_handler(int socksd, int udp_sock, const struct packet *pck, c
  * Gestisce il messaggio di risposta whohas.
  */
 int whohas_response_handler(int udp_sock, const struct packet *pck, const struct sockaddr_in *addr) {
-	char *tmp;
-	char md5_hex[MD5_DIGEST_LENGTH * 2 + 1];
-	char name[255];
-	int len;
-	int offset;
 	struct packet send_pck;
-	unsigned long ip;
-	unsigned short port;
-	struct in_addr inaddr;
-printf("response handler\n");
+
 	new_ack_packet(&send_pck, pck->index);
 	if (mutex_send(udp_sock, addr, &send_pck) < 0) {
 		fprintf(stderr, "udp_handler error - mutex_send failed\n");
@@ -683,59 +766,16 @@ printf("response handler\n");
 	}
 
 	if (is_set_flag(pck, PACKET_FLAG_WHOHAS_NAME)) {
-		if ((tmp = strstr(pck->data, "\n")) == NULL) {
-			fprintf(stderr, "whohas_handler error - bad packet format\n");
+		if (whohas_response_handler_name(pck) < 0) {
+			fprintf(stderr, "whohas_response_handler error - whohas_response_handler_name failed\n");
 			return -1;
 		}
-		*tmp = 0;
-
-		offset = tmp - pck->data + 1;
-
-		while (offset < pck->data_len) {
-			ip = btol(pck->data + offset);
-			inaddr.s_addr = ip;
-			offset += sizeof(long);
-			port = btos(pck->data + offset);
-			offset += sizeof(short);
-			to_hex(md5_hex, (unsigned char *)(pck->data + offset));
-			md5_hex[MD5_DIGEST_LENGTH * 2] = 0;
-			offset += MD5_DIGEST_LENGTH;
-
-			printf("%s:%u %s %s\n", inet_ntoa(inaddr), ntohs(port), md5_hex, pck->data);
-		}
-
 	} else if (is_set_flag(pck, PACKET_FLAG_WHOHAS_MD5)) {
-		
-		if ((tmp = strstr(pck->data, "\n")) == NULL) {
-			fprintf(stderr, "whohas_handler error - bad packet format\n");
+		if (whohas_response_handler_md5(pck) < 0) {
+			fprintf(stderr, "whohas_response_handler error - whohas_response_handler_md5 failed\n");
 			return -1;
-		}
-		to_hex(md5_hex, (unsigned char *)(pck->data));
-		md5_hex[MD5_DIGEST_LENGTH * 2] = 0;	
-		*tmp = 0;
-		offset = tmp - pck->data + 1;
-		
-		while (offset < pck->data_len) {
-			ip = btol(pck->data + offset);
-			inaddr.s_addr = ip;
-			offset += sizeof(long);
-			port = btos(pck->data + offset);
-			offset += sizeof(short);
-			
-			
-			if ((tmp = strstr(pck->data+offset, "\n")) == NULL) {
-				fprintf(stderr, "whohas_handler error - bad packet format\n");
-				return -1;
-			}
-			
-			len =(int)(tmp - (pck->data + offset));
-			strncpy(name,pck->data + offset, len);
-			name[len]=0;
-			offset+= len+1;
-			printf("%s:%u %s %s\n", inet_ntoa(inaddr), ntohs(port), name , md5_hex);
 		}
 	}
-
 
 	return 0;
 }
@@ -759,7 +799,7 @@ int whohas_handler_udp(int socksd, const struct packet *pck, const struct sockad
 				return -1;
 			}
 		} else {
-			//NO SONO SP, NON POSSO GESTIE LE RICHIESTE WHOHAS
+			//NO SONO SP, NON POSSO GESTIRE LE RICHIESTE WHOHAS
 			new_err_packet(&send_pck, pck->index);
 			if (mutex_send(socksd, addr, &send_pck) < 0) {
 				fprintf(stderr, "whohas_handler_udp error - mutex_send failed\n");
@@ -792,10 +832,6 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 		return -1;
 	}
 
-	//TODO se ho già processato questa richiesta nel immediato passato rinvio l'ack
-	
-//	printf("PACKET: CMD=%s INDEX=%u\n", recv_pck.cmd, recv_pck.index);
-			
 	if (!strncmp(recv_pck.cmd, CMD_ACK, CMD_STR_LEN)) {
 		//ricevuto ack
 		if (ack_handler(udp_sock, &addr, bs_addr, &recv_pck) < 0) {
@@ -808,7 +844,7 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 			return -1;
 		}
 	} else if (!strncmp(recv_pck.cmd, CMD_ERR, CMD_STR_LEN)) {
-		//ricevuto ERR
+		//ricevuto ERR TODO
 		;
 	} else if (!strncmp(recv_pck.cmd, CMD_PING, CMD_STR_LEN)) { 
 		if (ping_handler(udp_sock, &addr, &recv_pck) < 0) {
@@ -889,6 +925,13 @@ int tcp_handler(int tcp_sock, int udp_sock) {
 		}
 
 	} else {
+		if (errno == ECONNRESET) {
+			if (close_conn(tcp_sock) < 0) {
+				fprintf(stderr, "tcp_handler error - close_conn failed\n");
+				return -1;
+			}
+			return 0;
+		}
 		perror("tcp_handler error - readline failed");
 		return -1;
 	}
@@ -912,7 +955,7 @@ int redirect_handler(int udp_sock, const struct packet *recv_pck) {
 
 	if (state == ST_JOINSP_SENT) {
 		str2addr(&addr, recv_pck->data);		
-		new_join_packet_rate(&send_pck, get_index(), peer_rate);
+		new_join_packet_sp(&send_pck, get_index(), peer_rate, conf.tcp_port);
 		if (retx_send(udp_sock, &addr, &send_pck) < 0) {
 			fprintf(stderr, "redirect_handler error - retx_send failed\n");
 			return -1;
@@ -939,7 +982,7 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 		addr_list_len = recv_pck->data_len / 6;
 		addr_list = str_to_addr(recv_pck->data, addr_list_len);
 		curr_addr_index = 0;
-		new_join_packet_rate(&send_pck, get_index(), peer_rate);
+		new_join_packet_sp(&send_pck, get_index(), peer_rate, conf.tcp_port);
 
 		if (retx_send(udp_sock, &addr_list[0], &send_pck) < 0) {
 			fprintf(stderr, "udp_handler error - retx_send failed\n");
@@ -950,7 +993,13 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 		bserror = 0;
 		addr_list_len = recv_pck->data_len / 6;
 		addr_list = str_to_addr(recv_pck->data, addr_list_len);
-		init_superpeer(addr_list, recv_pck->data_len / 6);
+		if (init_superpeer(addr_list, recv_pck->data_len / 6) < 0) {
+			fprintf(stderr, "list_handler error - init_superpeer failed\n");
+			free(addr_list);
+			addr_list = NULL;
+			return -1;
+		}
+
 		free(addr_list);
 		addr_list = NULL;
 		new_register_packet(&send_pck, get_index());
@@ -1027,7 +1076,7 @@ int promote_handler(int udp_sock, const struct sockaddr_in *recv_addr, const str
 int join_handler(int udp_sock, const struct sockaddr_in *addr, const struct packet *pck) {
 	struct packet tmp_packet;
 
-	//se ha inviato un promote e sta ancora aspettando la risposta, ignora i join che riceve
+	//se ha inviato un promote e sta ancora aspettando la risposta, ignora il join che riceve
 	if (state == ST_PROMOTE_SENT) {
 		return 0;
 	}
@@ -1044,7 +1093,7 @@ int join_handler(int udp_sock, const struct sockaddr_in *addr, const struct pack
 		} else {
 			if (curr_p_count < MAX_P_COUNT) {
 				//posso accettare il peer
-				if (join_peer(addr, btol(pck->data), peer_list_checker) < 0) {
+				if (join_peer(addr, btol(pck->data), btos(pck->data + sizeof(long)), peer_list_checker) < 0) {
 					fprintf(stderr, "join_handler error - can't join peer\n");
 					return -1;
 				}
@@ -1233,7 +1282,7 @@ int error_handler(int udp_sock, const char *errstr, const struct sockaddr_in *bs
 			if (curr_addr_index < addr_list_len - 1) {
 				printf("Provo a contattare il prossimo della lista\n");
 				curr_addr_index ++;
-				new_join_packet_rate(&send_pck, get_index(), peer_rate);
+				new_join_packet_sp(&send_pck, get_index(), peer_rate, conf.tcp_port);
 				if (retx_send(udp_sock, &addr_list[curr_addr_index], &send_pck) < 0) {
 					fprintf(stderr, "error_handler error - retx_send failed\n");
 					return -1;
@@ -1265,7 +1314,10 @@ int error_handler(int udp_sock, const char *errstr, const struct sockaddr_in *bs
 		}
 	} else if (!strncmp(errstr, CMD_LEAVE, CMD_STR_LEN)) {
 		exit(0);
+	} else if (!strncmp(errstr, CMD_GET, CMD_STR_LEN)) {
+		//TODO
 	}
+
 	return 0;
 }
 
@@ -1319,6 +1371,7 @@ int main(int argc,char *argv[]) {
 		return 0;
 	}
 
+	//imposto la cwd alla cartella contenente i file eseguibili
 	get_dirpath(cwd, argv[0]);
 	if (chdir(cwd) < 0) {
 		perror("Can't change current workink directory");
@@ -1343,8 +1396,11 @@ int main(int argc,char *argv[]) {
 	}
 
 	if (conf.udp_port == 0) {
+		//la porta è stata scelta dal kernel
 		conf.udp_port = get_local_port(udp_sock);
 		printf("PORT = %u\n", ntohs(conf.udp_port));
+	} else {
+		conf.udp_port = htons(conf.udp_port);
 	}
 
 	if (set_addr_in(&addr, argv[1], BS_PORT) < 0) {
@@ -1381,17 +1437,17 @@ int main(int argc,char *argv[]) {
 		} else if (fd_ready(fileno(stdin))) {
 			if (keyboard_handler(udp_sock) < 0) {
 				fprintf(stderr, "keyboard_handler failed\n");
-				return 1;
+			//	return 1;
 			}
 		} else if (fd_ready(tcp_listen)) {
 			if (accept_conn(tcp_listen) < 0) {
 				fprintf(stderr, "accept_conn failed\n");
-				return 1;
+			//	return 1;
 			}
 		} else if (fd_ready(dw_listen_sock)) {
 			if ((sock = accept(dw_listen_sock, NULL, NULL)) < 0) {
 				perror("accept failed");
-				return 1;
+			//	return 1;
 			}
 			if (upload_count < conf.max_upload) {
 				if (add_upload(sock) < 0) {
@@ -1414,7 +1470,7 @@ int main(int argc,char *argv[]) {
 				if (fd_ready(iterator->socksd)) {
 					if (tcp_handler(iterator->socksd, udp_sock) < 0) {
 						fprintf(stderr, "Error\n");
-						return 1;
+					//	return 1;
 					}
 					if (--ready <= 0) {
 						break;

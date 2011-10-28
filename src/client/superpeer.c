@@ -8,8 +8,9 @@
 int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
 	int i, ok = 1;
 	int sock_tmp;
+	char buf;
 	int addr_check = 0;
-	int j;
+	int j, nread;
 	struct sockaddr_in *addr_list;
 
 	memset(near_str, 0, MAX_TCP_SOCKET * 6);
@@ -35,13 +36,25 @@ int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
 				addr_check = 1;
 			}
 			ok = 1;
-			fd_add(sock_tmp);
 
 			if (write(sock_tmp, (char *)&conf.udp_port, sizeof(conf.udp_port)) < 0) {
 				perror("join_overlay error - write failed\n");
 				return -1;
 			}
 
+			if ((nread = read(sock_tmp, &buf, 1)) < 0) {
+				perror("join_overlay error - read failed");
+				return -1;
+			} else if (nread == 0) {
+				printf("join_overlay - connection closed by superpeer\n");
+				if (close(sock_tmp) < 0) {
+					perror("join_overlay error - close failed");
+					return -1;
+				}
+				continue;	
+			}
+
+			fd_add(sock_tmp);
 			if (insert_near(sock_tmp, &sp_addr_list[i]) < 0) {
 				fprintf(stderr, "join_overlay error - insert_near failed\n");
 				return -1;
@@ -63,8 +76,10 @@ int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
 	}
 
 	if (nsock == 0) {
+		printf("join_overlay error - can't connect to any superpeer\n");
+		exit(1);
 		return -1;
-	}
+	} 
 
 	return 0;
 	
@@ -93,6 +108,7 @@ int init_superpeer(const struct sockaddr_in *sp_addr_list, int list_len) {
 		return -1;
 	}
 
+
 	if (sp_addr_list != NULL) {
 		//provo a connettermi agli altri superpeer
 		if (join_overlay(sp_addr_list, list_len) < 0) {
@@ -101,9 +117,7 @@ int init_superpeer(const struct sockaddr_in *sp_addr_list, int list_len) {
 		}
 		myaddr.sin_port = conf.udp_port;
 		printf("MIO INDIRIZZO: %s:%d\n", inet_ntoa(myaddr.sin_addr), ntohs(myaddr.sin_port));
-	}
-
-
+	} 
 
 
 	return 0;
@@ -164,14 +178,14 @@ int promote_peer(int udp_sock, struct peer_list_ch_info *plchinfo) {
 
 }
 
-int join_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate, struct peer_list_ch_info *plchinfo) {
+int join_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate, unsigned short dw_port, struct peer_list_ch_info *plchinfo) {
 	int rc;
 
 	if ((rc = pthread_mutex_lock(&plchinfo->thinfo.mutex)) != 0) {
 		fprintf(stderr, "join_peer error - can't acquire lock: %s\n", strerror(rc));
 		return -1;
 	}
-	sorted_insert_peer(peer_addr, peer_rate);
+	sorted_insert_peer(peer_addr, peer_rate, dw_port);
 	if ((rc = pthread_mutex_unlock(&plchinfo->thinfo.mutex)) != 0) {
 		fprintf(stderr, "join_peer error - can't release lock: %s\n", strerror(rc));
 		return -1;
@@ -227,10 +241,18 @@ int accept_conn(int tcp_listen) {
 	struct sockaddr_in addr;
 	unsigned int len = sizeof(struct sockaddr_in);
 
-	if (nsock < MAX_TCP_SOCKET) {
+//	if (nsock < MAX_TCP_SOCKET) {
 		if ((sock_tmp = accept(tcp_listen, (struct sockaddr*)&addr, &len)) < 0) {
 			perror("accept_conn error - accept failed");
 			return -1;
+		}
+		if (nsock >= MAX_TCP_SOCKET) {
+			printf("accept_conn - can't accept more connection\n");
+			if (close(sock_tmp) < 0) {
+				perror("accept_conn error - close failed");
+				return -1;
+			}
+			return 0;
 		}
 		if ((nread = read(sock_tmp, (char *)&port, sizeof(port))) != sizeof(port)) {
 			if (nread < 0) {
@@ -238,6 +260,11 @@ int accept_conn(int tcp_listen) {
 			} else {
 				fprintf(stderr, "accept_conn error - bad packet format\n");
 			}
+			return -1;
+		}
+
+		if (write(sock_tmp, "X", 1) < 0) {
+			perror("bad write");
 			return -1;
 		}
 		printf("connessione accettata da %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
@@ -266,10 +293,10 @@ int accept_conn(int tcp_listen) {
 			printf("accept - near %s:%d\n", inet_ntoa(addr_list[j].sin_addr), ntohs(addr_list[j].sin_port));
 		}
 		nsock ++;
-	} else {
+/*	} else {
 		fprintf(stderr, "accept_conn error - can't accept more connection\n");
 		return -1;
-	}
+	}*/
 
 	return 0;
 }

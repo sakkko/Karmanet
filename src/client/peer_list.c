@@ -3,7 +3,7 @@
 /*
 * Funzione che inserisce un indirizzo in testa alla lista.
 */
-void insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate) {
+void insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate, unsigned short dw_port) {
 	struct node *tmp_node;
 	struct peer_node *new_node;
 	
@@ -12,7 +12,7 @@ void insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate) {
 	}
 	if ((tmp_node = get_node_peer(peer_addr)) == NULL) {
 		//indirizzo non presente in lista, lo inserisco
-		new_node = new_peer_node(peer_addr, peer_rate);
+		new_node = new_peer_node(peer_addr, peer_rate, dw_port);
 		peer_list_head = insert_node(peer_list_head, new_node);
 		curr_p_count ++;	
 	} else {
@@ -24,7 +24,7 @@ void insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate) {
  * Funzione che inserisce un indirizzo nella lista, mantenendo la lista ordinata
  * secondo il rate del peer.
  */
-void sorted_insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate) {
+void sorted_insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate, unsigned short dw_port) {
 	struct node *tmp_node;
 	struct peer_node *tmp_peernode;
 
@@ -50,19 +50,20 @@ void sorted_insert_peer(const struct sockaddr_in *peer_addr, unsigned long peer_
 		tmp_node = tmp_node->next;
 	}
 
- 	peer_list_head = sorted_insert_node(peer_list_head, tmp_node, new_peer_node(peer_addr, peer_rate));
+ 	peer_list_head = sorted_insert_node(peer_list_head, tmp_node, new_peer_node(peer_addr, peer_rate, dw_port));
 	curr_p_count ++;
 }
 
 /*
  * Funzione che crea un nuovo nodo.
  */
-struct peer_node *new_peer_node(const struct sockaddr_in *peer_addr, unsigned long peer_rate) {
+struct peer_node *new_peer_node(const struct sockaddr_in *peer_addr, unsigned long peer_rate, unsigned short port) {
 	struct peer_node *new_node;
 
 	new_node = (struct peer_node *)malloc(sizeof(struct peer_node));
 	new_node->flag = 1;
 	new_node->peer_rate = peer_rate;
+	new_node->dw_port = port;
 	addrcpy(&new_node->peer_addr, peer_addr);
 
 	return new_node;

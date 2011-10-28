@@ -55,10 +55,11 @@ void new_join_packet(struct packet *pck, unsigned short index) {
 }
 
 
-void new_join_packet_rate(struct packet *pck, unsigned short index, long rate) {
-	char str[sizeof(long)];
+void new_join_packet_sp(struct packet *pck, unsigned short index, unsigned long rate, unsigned short dw_port) {
+	char str[sizeof(long) + sizeof(short)];
 	ltob(str, rate);
-	new_packet(pck, CMD_JOIN, index, str, 4, 1);
+	stob(str + sizeof(long), dw_port);
+	new_packet(pck, CMD_JOIN, index, str, sizeof(long) + sizeof(short), 1);
 }
 
 void new_ack_packet(struct packet *pck, unsigned short index) {
@@ -114,6 +115,20 @@ void pck_to_b(char *str, const struct packet *input) {
 	memcpy(str + offset, input->data, input->data_len);
 }
 
+void b_to_header(const char *input, struct packet *output) {
+	int offset = CMD_STR_LEN;
+
+	memcpy(output->cmd, input, CMD_STR_LEN);
+	output->flag = input[offset];
+	offset ++;
+	output->index = btos(input + offset);
+	offset += sizeof(output->index);
+	output->TTL = btos(input + offset);
+	offset += sizeof(output->TTL);
+	output->data_len = btos(input + offset);
+	offset += sizeof(output->data_len);
+}
+
 void b_to_pck(const char *input, struct packet *output) {
 	int offset = CMD_STR_LEN;
 	
@@ -151,17 +166,27 @@ int recv_packet(int socksd, struct packet *pck) {
 
 int recv_packet_tcp(int socksd, struct packet *pck) {
 	int ret;
-	char buf[MAX_PACKET_SIZE];
+	char buf[HEADER_SIZE];
 
-	if ((ret = read(socksd, buf, MAX_PACKET_SIZE)) < 0) {
+	if ((ret = readn(socksd, buf, HEADER_SIZE)) < 0) {
 		perror("recv_packet_tcp error - read failed");
 		return -1;
-	} else if (ret == 0) {
+	} else if (ret > 0) {
 		return 0;
 	}
 
-	b_to_pck(buf, pck);
-	return ret;
+	b_to_header(buf, pck);
+
+	if (pck->data_len > 0) {
+		if ((ret = readn(socksd, pck->data, pck->data_len)) < 0) {
+			perror("recv_packet_tcp error - read failed");
+			return -1;
+		} else if (ret > 0) {
+			return 0;
+		}
+	}
+
+	return pck->data_len + HEADER_SIZE;
 }
 	
 int send_packet(int socksd, const struct sockaddr_in *addr, const struct packet *pck) {
@@ -180,7 +205,7 @@ int send_packet_tcp(int socksd, const struct packet *pck) {
 	int ret;
 	char buf[MAX_PACKET_SIZE];
 	pck_to_b(buf, pck);	
-	if ((ret = write(socksd, buf, get_pcklen(pck))) < 0) {
+	if ((ret = writen(socksd, buf, get_pcklen(pck))) < 0) {
 		return -1;
 	}
 	

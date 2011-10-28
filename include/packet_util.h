@@ -33,7 +33,7 @@ void new_packet(struct packet *to_create, const char *cmd, unsigned short index,
 
 void new_join_packet(struct packet *pck, unsigned short index);
 
-void new_join_packet_rate(struct packet *pck, unsigned short index , long rate);
+void new_join_packet_sp(struct packet *pck, unsigned short index, unsigned long rate, unsigned short dw_port);
 
 void new_ack_packet(struct packet *pck, unsigned short index);
 

@@ -195,6 +195,7 @@ int get_chunk(int fd, int fdpart, int socksd, int missing_chunk) {
 		return -1;
 	}
 
+
 	lseek(fd, missing_chunk * CHUNK_SIZE, SEEK_SET);
 	while ((n = recv_packet_tcp(socksd, &recv_pck)) > 0) {
 		if (strncmp(recv_pck.cmd, CMD_DATA, CMD_STR_LEN)) {

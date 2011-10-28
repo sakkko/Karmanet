@@ -126,5 +126,12 @@ int whohas_response_handler(int udp_sock, const struct packet *pck, const struct
 
 int whohas_handler_udp(int socksd, const struct packet *pck, const struct sockaddr_in *addr);
 
+int whohas_request_handler_name(int udp_sock, const struct packet *pck, const struct sockaddr_in *addr);
+
+int whohas_request_handler_md5(int udp_sock, const struct packet *pck, const struct sockaddr_in *addr);
+
+int whohas_response_handler_md5(const struct packet *pck);
+
+int whohas_response_handler_name(const struct packet *pck);
 #endif
 

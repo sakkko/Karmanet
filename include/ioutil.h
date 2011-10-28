@@ -18,6 +18,8 @@ void add_fd(int fd, fd_set *fdset);
 
 ssize_t writen(int fd, const void *buf, size_t n);
 
+int readn(int fd, void *buf, size_t n);
+
 int readline(int fd, void *vptr, int maxlen);
 
 void ltob(char *dest, long src);

@@ -14,7 +14,6 @@
 #include <errno.h>
 
 #define BACKLOG 10
-#define TCP_PORT 5193
 #define MAX_TCP_SOCKET 6
 
 
@@ -34,15 +33,13 @@ struct sockaddr_in child_addr; //ultimo promote inviato
 
 struct sockaddr_in myaddr;
 
-int sp_init();
-
 int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len);
 
 int init_superpeer(const struct sockaddr_in *sp_addr_list, int list_len);
  
 int set_listen_socket(unsigned short port);
 
-int join_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate, struct peer_list_ch_info *plchinfo);
+int join_peer(const struct sockaddr_in *peer_addr, unsigned long peer_rate, unsigned short dw_port, struct peer_list_ch_info *plchinfo);
 
 int promote_peer(int udp_sock, struct peer_list_ch_info *plchinfo);
 
