@@ -22,8 +22,8 @@ struct near_node {
 
 struct near_node *near_list_head;
 
-//pthread_mutex_t NEAR_LIST_LOCK = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t NEAR_LIST_LOCK;
+
 
 int insert_near(int socksd, const struct sockaddr_in *addr);
 

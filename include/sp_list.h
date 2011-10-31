@@ -4,7 +4,7 @@
 #include "list.h"
 #include "inetutil.h"
 
-#define ADDR_TOSEND 1
+#define ADDR_TOSEND 3
 
 
 struct spaddr_node {

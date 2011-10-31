@@ -23,4 +23,6 @@ int thread_stop(struct th_info *thinfo);
 
 int write_err(int th_pipe, pthread_mutex_t *pipe_mutex, const char *msg);
 
+int write_on_pipe(int th_pipe, pthread_mutex_t *pipe_mutex, const char *str);
+
 #endif

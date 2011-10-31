@@ -38,7 +38,6 @@
 #define ST_ACTIVE 6
 #define ST_LEAVE_SENT 7
 
-#define UDP_PORT 5193
 #define BS_PORT 5193
 
 #define MAX_P_COUNT 2  //numero massimo di peer connessi a me stesso
@@ -133,5 +132,10 @@ int whohas_request_handler_md5(int udp_sock, const struct packet *pck, const str
 int whohas_response_handler_md5(const struct packet *pck);
 
 int whohas_response_handler_name(const struct packet *pck);
+
+int upload_term_handler(int index);
+
+int do_get(const char *str);
+
 #endif
 

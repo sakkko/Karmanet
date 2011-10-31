@@ -25,6 +25,29 @@ int write_err(int th_pipe, pthread_mutex_t *pipe_mutex, const char *msg) {
 	return 0;
 }
 
+int write_on_pipe(int th_pipe, pthread_mutex_t *pipe_mutex, const char *str) {
+	int rc;
+
+	if ((rc = pthread_mutex_lock(pipe_mutex)) != 0) {
+		fprintf(stderr, "write_err error - can't acquire lock on pipe: %s\n", strerror(rc));
+		return -1;
+	}
+	if (write(th_pipe, str, strlen(str)) < 0) {
+		if ((rc = pthread_mutex_unlock(pipe_mutex)) != 0) {
+			fprintf(stderr, "write_err error - can't release lock on pipe: %s\n", strerror(rc));
+			return -1;
+		}
+		perror("write_err error - can't write on pipe");
+		return -1;
+	}
+	if ((rc = pthread_mutex_unlock(pipe_mutex)) != 0) {
+		fprintf(stderr, "write_err error - can't release lock on pipe: %s\n", strerror(rc));
+		return -1;
+	}
+
+	return 0;
+}
+
 /*
  * Funzione che lancia un thread, che eseguirà la funzione start_routine con parametri args.
  * Ritorna 0 in caso di successo e -1 in caso di errore.

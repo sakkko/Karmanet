@@ -162,7 +162,6 @@ int download(int fd, int fdpart, const char *partname, const struct transfer_nod
 	if (lseek(fd, 0, SEEK_END) == dwnode->file_info.file_size && my_chunk_number == dwnode->file_info.chunk_number) {
 		printf("FILE COMPLETO\n");
 		if (unlink(partname) < 0) {
-			perror("downlaod error - unlink failed");
 			return -1;
 		}
 	}

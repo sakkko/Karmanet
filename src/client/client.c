@@ -20,13 +20,117 @@ void sighand(int signo) {
 	return;
 }
 
+int do_get(const char *str) {
+	char ip_str[15];
+	int i;
+	unsigned char md5[MD5_DIGEST_LENGTH];
+	unsigned short port;
+	struct sockaddr_in to_download;
+	int len = strlen(str);
+
+	for (i = 0; i < len; i ++) {
+		if (str[i] == ':') {
+			break;
+		}
+	}
+
+	if (i == len) {
+		fprintf(stderr, "invalid command format. Use get ip:port md5\n");
+		return 0;
+	}
+
+	strncpy(ip_str, str, i);
+	ip_str[i] = 0;
+	i ++;
+
+	port = atoi(str + i);
+	printf("PORT = %u\n", port);
+
+	for ( ; i < len; i ++) {
+		if (str[i] == ' ') {
+			break;
+		}
+	}
+
+	if (i == len) {
+		fprintf(stderr, "invalid command format. Use get ip:port md5\n");
+		return 0;
+	}
+
+	i ++;
+
+	if (len - i != MD5_DIGEST_LENGTH * 2) {
+		fprintf(stderr, "md5 not valid\n");
+		return 0;
+	}
+
+	get_from_hex(str + i, md5, MD5_DIGEST_LENGTH);
+
+	set_addr_in(&to_download, ip_str, port);
+	if (add_download(&to_download, md5) < 0) {
+		fprintf(stderr, "do_get error - add_download failed\n");
+		return -1;
+	}
+
+	return 0;
+
+}
+
+int do_whohas(int udp_sock, const char *str) {
+	struct packet pck; 
+	struct addr_node *results;
+
+	new_whs_query_packet(&pck, get_index(), str, strlen(str), DEFAULT_TTL);
+	pck.data[pck.data_len] = 0;
+	printf("File richiesto: %s\n", pck.data);	
+	if (is_sp) {
+		results = get_by_name(str);
+		print_results_name(results, str);
+		if (whohas_request_handler(-1, udp_sock, &pck, &myaddr, 0) < 0) {
+			fprintf(stderr, "keyboard_handler error - whohas_request_handler failed\n");
+			return -1;
+		}
+	} else {
+		if (retx_send(udp_sock, &pinger.addr_to_ping, &pck) < 0) {
+			fprintf(stderr, "keyboadr_handler error - retx_send failed\n");
+			return -1;
+		}			
+	}
+
+	return 0;
+}
+
+int do_whohas_md5(int udp_sock, const char *str) {
+	struct packet pck; 
+	struct md5_info *res_md5;
+	unsigned char md5[MD5_DIGEST_LENGTH];
+
+	get_from_hex(str, md5, MD5_DIGEST_LENGTH);
+	new_whs_query5_packet(&pck, get_index(), (char *)md5, MD5_DIGEST_LENGTH, DEFAULT_TTL);
+	pck.data[pck.data_len] = 0;
+	printf("MD5 richiesto: %s\n", str);	
+	if (is_sp) {
+		res_md5 = get_by_md5(md5);
+		print_results_md5(res_md5);
+		if (whohas_request_handler(-1, udp_sock, &pck, &myaddr, 0) < 0) {
+			fprintf(stderr, "keyboard_handler error - whohas_request_handler failed\n");
+			return -1;
+		}
+	} else {
+		if (retx_send(udp_sock, &pinger.addr_to_ping, &pck) < 0) {
+			fprintf(stderr, "keyboadr_handler error - retx_send failed\n");
+			return -1;
+		}			
+	}
+
+	return 0;
+}
+
 /*
 *	Funzione che riconosce ed esegue i comandi dati da tastiera
 */
 int keyboard_handler(int udp_sock){
 	struct packet pck; 
-	struct addr_node *results;
-	struct md5_info *res_md5;
 	char str[MAXLINE];
 	int nread;
 
@@ -45,79 +149,26 @@ int keyboard_handler(int udp_sock){
 		if (strlen(str) <= 11) {
 			return 0;
 		}
-		unsigned char md5[MD5_DIGEST_LENGTH];
-		get_from_hex(str+11,md5, MD5_DIGEST_LENGTH);
-		new_whs_query5_packet(&pck, get_index(),(char*) md5, MD5_DIGEST_LENGTH, DEFAULT_TTL);
-		pck.data[pck.data_len] = 0;
-		printf("MD5 richiesto: %s\n",str+11);	
-		if (is_sp) {
-			res_md5 = get_by_md5(md5);
-			print_results_md5(res_md5);
-			if (whohas_request_handler(-1, udp_sock, &pck, &myaddr, 0) < 0) {
-				fprintf(stderr, "keyboard_handler error - whohas_request_handler failed\n");
-				return -1;
-			}
-		} else {
-			if (retx_send(udp_sock, &pinger.addr_to_ping, &pck) < 0) {
-				fprintf(stderr, "keyboadr_handler error - retx_send failed\n");
-				return -1;
-			}			
-			//printf("Ricerca iniziata, attendere...\n");
+		if (do_whohas_md5(udp_sock, str + 11) < 0) {
+			fprintf(stderr, "keyboard_handler error - do_whohas_md5 failed\n");
+			return -1;
 		}
 	} else if (!strncmp(str, "whohas", 6)) {
 		if (strlen(str) <= 7) {
 			return 0;
 		}
-		new_whs_query_packet(&pck, get_index(), str + 7, strlen(str) - 7, DEFAULT_TTL);
-		pck.data[pck.data_len] = 0;
-		printf("File richiesto: %s\n", pck.data);	
-		if (is_sp) {
-			results = get_by_name(str + 7);
-			print_results_name(results, str + 7);
-			if (whohas_request_handler(-1, udp_sock, &pck, &myaddr, 0) < 0) {
-				fprintf(stderr, "keyboard_handler error - whohas_request_handler failed\n");
-				return -1;
-			}
-		} else {
-			if (retx_send(udp_sock, &pinger.addr_to_ping, &pck) < 0) {
-				fprintf(stderr, "keyboadr_handler error - retx_send failed\n");
-				return -1;
-			}			
-			//printf("Ricerca iniziata, attendere...\n");
+		if (do_whohas(udp_sock, str + 7) < 0) {
+			fprintf(stderr, "keyboard_handler error - do_whohas failed\n");
+			return -1;
 		}
-		
 	} else if (!strncmp(str, "get", 3)) {
 		if (strlen(str) <= 4) {
 			return 0;
-		}//get ip:port md5
-		
-		//TODO
-		char ip_str[15];
-		int i,ip_len = 0;
-		char md5_str[32];
-		unsigned char md5[MD5_DIGEST_LENGTH];
-
-		while(strncmp(str+4+ip_len,":",1)){
-			ip_len++;	
-		}
-		strncpy(ip_str,str+4,ip_len);
-		ip_str[ip_len]=0;
-		i = ip_len;
-		while(strncmp(str+5+i," ",1)){
-			i++;	
-		}
-		strncpy(md5_str,str+6+i, 32 );
-		md5_str[32]=0;
-		get_from_hex(md5_str, md5, MD5_DIGEST_LENGTH);
-		struct sockaddr_in to_download;
-		set_addr_in(&to_download, ip_str, atoi(str+5+ip_len));
-		//start download (&to_download,md5_str);
-
-		if (add_download(&to_download, md5) < 0) {
-			fprintf(stderr, "keyboard_handler error - add_download failed\n");
+		}		
+		if (do_get(str + 4) < 0) {
+			fprintf(stderr, "keyboard_handler error - do_get faield\n");
 			return -1;
 		}
-
 	} else if (!strcmp(str, "help")) {
 		write_help();
 	} else if (!strcmp(str, "update")) {
@@ -165,6 +216,8 @@ int init_transfer() {
 		return 0;
 	}
 
+	download_count = 0;
+	upload_count = 0;
 	if (downloader_init(conf.max_download, thread_pipe[1], &pipe_mutex) < 0) {
 		fprintf(stderr, "init_tranfer error - downloader_init failed\n");
 		return -1;
@@ -1260,6 +1313,7 @@ int stop_threads(int reset) {
  */
 int error_handler(int udp_sock, const char *errstr, const struct sockaddr_in *bs_addr) {
 	struct packet send_pck;
+	int index;
 
 	if (!strncmp(errstr, CMD_JOIN, CMD_STR_LEN)) {
 		if (state == ST_JOINBS_SENT) {
@@ -1315,7 +1369,29 @@ int error_handler(int udp_sock, const char *errstr, const struct sockaddr_in *bs
 	} else if (!strncmp(errstr, CMD_LEAVE, CMD_STR_LEN)) {
 		exit(0);
 	} else if (!strncmp(errstr, CMD_GET, CMD_STR_LEN)) {
-		//TODO
+		if (errstr[CMD_STR_LEN] == 'U') {
+			index = atoi(errstr + CMD_STR_LEN + 2);
+			printf("Errore upload file %s\n", ul_pool[index].ulnode.file_info.md5);
+			if (upload_term_handler(index) < 0) {
+				fprintf(stderr, "pipe_handler error - upload_term_handler failed\n");
+				return -1;
+			}
+		}
+	}
+
+	return 0;
+}
+
+int upload_term_handler(int index) {
+	if (index < conf.max_upload) {
+		pthread_mutex_lock(&ul_pool[index].th_mutex);
+		ul_pool[index].sleeping = 1;
+		pthread_mutex_unlock(&ul_pool[index].th_mutex);
+		upload_count --;
+		printf("UPLOADS: %d\n", upload_count);
+	} else {
+		fprintf(stderr, "pipe_handler error - invalid uploader thread index\n");
+		return -1;
 	}
 
 	return 0;
@@ -1346,6 +1422,11 @@ int pipe_handler(int udp_sock, const struct sockaddr_in *addr) {
 		if (error_handler(udp_sock, str + 4, addr) < 0) {
 			fprintf(stderr, "pipe_handler error - error_handler failed\n");
 			return 1;
+		}
+	} else if (!strncmp(str, "TRM", 3)) {
+		if (upload_term_handler(atoi(str + 4)) < 0) {
+			fprintf(stderr, "pipe_handler error - upload_term_handler failed\n");
+			return -1;
 		}
 	}
 
@@ -1450,9 +1531,29 @@ int main(int argc,char *argv[]) {
 			//	return 1;
 			}
 			if (upload_count < conf.max_upload) {
-				if (add_upload(sock) < 0) {
-					fprintf(stderr, "add_upload failed\n");
+				int i;
+				for (i = 0; i < conf.max_upload; i ++) {
+					if (ul_pool[i].sleeping == 1) {
+						pthread_mutex_lock(&ul_pool[i].th_mutex);
+						ul_pool[i].ulnode.socksd = sock;
+						ul_pool[i].sleeping = 0;
+						pthread_cond_signal(&ul_pool[i].th_cond);
+						pthread_mutex_unlock(&ul_pool[i].th_mutex);
+						upload_count ++;
+						printf("UPLOADS: %d\n", upload_count);
+						break;
+					}
 				}
+
+				if (i == conf.max_upload) {
+					fprintf(stderr, "error - no uploader thread found\n");
+					if (close(sock) < 0) {
+						perror("close failed");
+						return 1;
+					}
+
+				}
+
 			} else {
 				if (close(sock) < 0) {
 					perror("close failed");

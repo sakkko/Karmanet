@@ -30,12 +30,6 @@ struct transfer_node *new_download_node(const struct sockaddr_in *addr, const un
 
 struct transfer_node *get_download();
 
-void insert_upload(int socksd);
-
-struct transfer_node *new_upload_node(int socksd);
-
-struct transfer_node *get_upload();
-
 void print_file_info(const struct transfer_info *file_info);
 
 #endif
