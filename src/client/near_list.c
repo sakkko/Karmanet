@@ -83,6 +83,21 @@ struct near_node *get_near_node(int socksd) {
 	
 }
 
+struct near_node *get_near_by_addr(const struct sockaddr_in *addr) {
+	struct near_node * iterator = near_list_head;
+
+	while(iterator != NULL){
+		if (addrcmp(&iterator->addr, addr)) {
+			break;
+		}
+		
+		iterator = iterator->next;
+	}
+
+	return iterator;
+	
+}
+
 struct near_node *create_new_near_node(int socksd, const struct sockaddr_in *addr){
 	int rc;
 	struct near_node *ret = (struct near_node *)malloc(sizeof(struct near_node));

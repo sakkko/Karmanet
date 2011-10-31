@@ -18,6 +18,7 @@
 
 #define CMD_ACK "ACK"
 #define CMD_ERR "ERR"
+#define CMD_ABORT "ABR"
 
 #define CMD_PING "PIN"
 #define CMD_PONG "PON"

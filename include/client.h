@@ -37,6 +37,7 @@
 #define ST_REGISTER_SENT 5
 #define ST_ACTIVE 6
 #define ST_LEAVE_SENT 7
+#define ST_OPEN_MORE_CONN 8
 
 #define BS_PORT 5193
 
@@ -107,6 +108,8 @@ int send_share(int udp_sock, const struct sockaddr_in *addr);
 
 int leave_handler(int udp_sock, const struct packet *recv_pck, const struct sockaddr_in *bs_addr, const struct sockaddr_in *addr);
 
+int register_handler(int udp_sock, const struct sockaddr_in *addr, const struct packet *recv_pck);
+
 void write_help();
 
 void send_leave(int udp_sock);
@@ -136,6 +139,8 @@ int whohas_response_handler_name(const struct packet *pck);
 int upload_term_handler(int index);
 
 int do_get(const char *str);
+
+int abort_handler(int udp_sock, const struct sockaddr_in *addr, const struct packet *recv_pck);
 
 #endif
 

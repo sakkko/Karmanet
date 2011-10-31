@@ -15,6 +15,7 @@
 
 #define BACKLOG 10
 #define MAX_TCP_SOCKET 6
+#define MAX_JOIN_OV_TRY 5
 
 
 char near_str[MAX_TCP_SOCKET * ADDR_STR_LEN];
@@ -32,6 +33,9 @@ short curr_child_redirect; //per contare quanti redirect ho inviato su mio figli
 struct sockaddr_in child_addr; //ultimo promote inviato
 
 struct sockaddr_in myaddr;
+
+int join_ov_try;
+
 
 int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len);
 

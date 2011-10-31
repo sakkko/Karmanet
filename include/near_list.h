@@ -31,6 +31,8 @@ int update_near(int socksd, const char *data, unsigned int data_len);
 
 struct near_node *get_near_node(int socksd);
 
+struct near_node *get_near_by_addr(const struct sockaddr_in *addr);
+
 struct near_node *create_new_near_node(int socksd, const struct sockaddr_in *addr);
 	
 int delete_near(int socksd);
