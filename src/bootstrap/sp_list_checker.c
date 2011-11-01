@@ -45,7 +45,6 @@ void sp_list_checker_func(void *args) {
 				fprintf(stderr, "sp_list_checker_func error - can't release lock: %s\n", strerror(rc));
 				pthread_exit((void *)-1);
 			}
-//			printf("SP_LIST_CHECKER TERMINATE\n");
 			pthread_exit((void *)0);
 		}
 		

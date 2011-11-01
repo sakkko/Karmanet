@@ -771,20 +771,42 @@ int whohas_request_handler_md5(int udp_sock, const struct packet *pck, const str
  */
 int whohas_request_handler(int socksd, int udp_sock, const struct packet *pck, const struct sockaddr_in *addr, int overlay) {
 	struct packet tmp_pck;
+	int rc, tmp;
 
+	if ((rc = pthread_mutex_lock(&peer_list_checker->request_mutex)) != 0) {
+		fprintf(stderr, "whohas_request_handler error - can't acquire lock: %s\n", strerror(rc));
+		return -1;
+	}
+
+	tmp = insert_request(pck->index, addr->sin_addr.s_addr, addr->sin_port);
+
+	if ((rc = pthread_mutex_unlock(&peer_list_checker->request_mutex)) != 0) {
+		fprintf(stderr, "whohas_request_handler error - can't release lock: %s\n", strerror(rc));
+		return -1;
+	}
+	
+	if (tmp == 1) {
+		return 0;
+	}
+	
 	pckcpy(&tmp_pck, pck);
 	if (overlay == 0) {
 		//il whohas è arrivato da un peer (socket udp)
-		addr2str(tmp_pck.data, addr->sin_addr.s_addr, addr->sin_port);
+		addr2str(tmp_pck.data, addr->sin_addr.s_addr, conf.udp_port);
 		memcpy(tmp_pck.data + ADDR_STR_LEN, pck->data, pck->data_len);
 		tmp_pck.data_len += ADDR_STR_LEN;
+	} else {
+		tmp_pck.TTL --;
 	}
 	
 	tmp_pck.data[tmp_pck.data_len] = 0;
 
-	if (flood_overlay(&tmp_pck, socksd) < 0) {
-		fprintf(stderr, "whohas_handler error - flood_overlay failed\n");
-		return -1;
+
+	if (tmp_pck.TTL > 0) {
+		if (flood_overlay(&tmp_pck, socksd) < 0) {
+			fprintf(stderr, "whohas_handler error - flood_overlay failed\n");
+			return -1;
+		}
 	}
 
 	if (addrcmp(&myaddr, addr)) {
@@ -877,6 +899,7 @@ int whohas_response_handler_md5(const struct packet *pck) {
 int whohas_response_handler(int udp_sock, const struct packet *pck, const struct sockaddr_in *addr) {
 	struct packet send_pck;
 
+	printf("INVIO ACK\n");
 	new_ack_packet(&send_pck, pck->index);
 	if (mutex_send(udp_sock, addr, &send_pck) < 0) {
 		fprintf(stderr, "udp_handler error - mutex_send failed\n");
@@ -1247,6 +1270,7 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 		addr_list = NULL;
 		if (ret < 0) {
 			fprintf(stderr, "list_handler error - join_overlay failed\n");
+			printf("CHIUDO LA LISTEN SOCK\n");
 			if (close(tcp_listen) < 0) {
 				perror("bad close");
 			}
@@ -1261,6 +1285,7 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 		} else if(ret == 1) {
 			if (join_ov_try >= MAX_JOIN_OV_TRY) {
 				if (nsock == 0) {
+			printf("CHIUDO LA LISTEN SOCK\n");
 					if (close(tcp_listen) < 0) {
 						perror("bad close");
 					}

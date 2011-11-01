@@ -7,12 +7,14 @@
 #include "peer_list.h"
 #include "thread_util.h"
 #include "hashtable.h"
+#include "fifo_request.h"
 
 #define PL_CHECK_TIME 6
 
 struct peer_list_ch_info {
 	struct th_info thinfo;
 	struct node **peer_list;
+	pthread_mutex_t request_mutex;
 };
 
 int peer_list_checker_run(struct peer_list_ch_info *plchinfo);

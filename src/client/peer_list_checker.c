@@ -5,6 +5,13 @@
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
 int peer_list_checker_run(struct peer_list_ch_info *plchinfo) {
+	int rc;
+
+	if ((rc = pthread_mutex_init(&plchinfo->request_mutex, NULL)) != 0) {
+		fprintf(stderr, "peer_list_checker_run error - can't initialize lock: %s\n", strerror(rc));
+		return -1;
+	}
+
 	return thread_run(&plchinfo->thinfo, (void *)&peer_list_checker_func, (void *)plchinfo);
 }
 
@@ -26,6 +33,7 @@ void peer_list_checker_func(void *args) {
 	struct timespec sleep_time;
 	struct node *tmp_node;
 	struct node *to_remove;
+	struct request_node *req_it;
 	int rc;
 
 	printf("AVVIO PROCESSO DI CONTROLLO LISTA P\n");
@@ -71,6 +79,27 @@ void peer_list_checker_func(void *args) {
 			fprintf(stderr, "peer_list_checker_func error - can't release lock: %s\n", strerror(rc));
 			pthread_exit((void *)-1);
 		}
+
+		if ((rc = pthread_mutex_lock(&plchinfo->request_mutex)) != 0) {
+			fprintf(stderr, "peer_list_checker_func error - can't acquire lock: %s\n", strerror(rc));
+			pthread_exit((void *)-1);
+		}
+		req_it = request_fifo_tail;
+
+		while (req_it != NULL) {
+			if (req_it->ttl == 0) {
+				remove_cascade_request(req_it);
+				break;
+			} else {
+				req_it->ttl --;
+			}
+			req_it = req_it->next;
+		}
+		if ((rc = pthread_mutex_unlock(&plchinfo->request_mutex)) != 0) {
+			fprintf(stderr, "peer_list_checker_func error - can't release lock: %s\n", strerror(rc));
+			pthread_exit((void *)-1);
+		}
+
 	}
 
 }
