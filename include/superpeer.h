@@ -14,7 +14,7 @@
 #include <errno.h>
 
 #define BACKLOG 10
-#define MAX_TCP_SOCKET 6
+#define MAX_TCP_SOCKET 3
 #define MAX_JOIN_OV_TRY 5
 
 

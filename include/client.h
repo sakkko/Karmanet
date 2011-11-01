@@ -41,8 +41,8 @@
 
 #define BS_PORT 5193
 
-#define MAX_P_COUNT 2  //numero massimo di peer connessi a me stesso
-#define MAX_REDIRECT_COUNT 1 //numero massimo di redirect
+#define MAX_P_COUNT 1  //numero massimo di peer connessi a me stesso
+#define MAX_REDIRECT_COUNT 0 //numero massimo di redirect
 
 #define MAX_BS_ERROR 5
 
@@ -141,6 +141,8 @@ int upload_term_handler(int index);
 int do_get(const char *str);
 
 int abort_handler(int udp_sock, const struct sockaddr_in *addr, const struct packet *recv_pck);
+
+int err_handler(int udp_sock, const struct sockaddr_in *addr, const struct sockaddr_in *bs_addr, const struct packet *recv_pck);
 
 #endif
 

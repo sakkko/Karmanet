@@ -42,7 +42,7 @@ int write_dir(int fd, int modtime, const char *dir) {
 	sprintf(tmp + sizeof(modtime) + 1, "%s\n", dir);
 	
 	if (write(fd, tmp, sizeof(modtime) + strlen(dir) + 2) < 0) {
-		perror("bad write");
+		perror("write_dir error - bad write");
 		return -1;
 	}
 
@@ -59,7 +59,7 @@ int write_file(int fd, int modtime, const unsigned char *md5, const char *filena
 	memcpy(tmp + sizeof(modtime) + 1, md5, MD5_DIGEST_LENGTH);
 	sprintf(tmp + MD5_DIGEST_LENGTH + sizeof(modtime) + 1, "%s\n", filename);
 	if (write(fd, tmp, MD5_DIGEST_LENGTH + sizeof(modtime) + strlen(filename) + 2) < 0) {
-		perror("bad write");
+		perror("write_file error - write failed");
 		return -1;
 	}
 
@@ -76,7 +76,7 @@ int write_diff(int fd, char flag, const unsigned char *md5, const char *filename
 	memcpy(tmp2 + 1, md5, MD5_DIGEST_LENGTH);
 	sprintf(tmp2 + MD5_DIGEST_LENGTH + 1, "%s\n", filename);
 	if (write(fd, tmp2, MD5_DIGEST_LENGTH + strlen(filename) + 2) < 0) {
-		perror("bad write");
+		perror("write_diff error - bad write");
 		return -1;
 	}
 
@@ -93,20 +93,20 @@ int add_shared_file(int fd_share, int fd_diff, const struct dirent *file, const 
 
 	sprintf(filepath, "%s/%s", share_dir, file->d_name);
 	if (lstat(filepath, &st) < 0) {
-		perror("add_error error - lstat failed");
+		perror("add_shared_file error - lstat failed");
 		return -1;
 	}
 	if (getMD5fname(filepath, md5) < 0) {
-		fprintf(stderr, "getMD5fname failed\n");
+		fprintf(stderr, "add_shared_file error - getMD5fname failed\n");
 		return -1;
 	}
 
 	if (write_file(fd_share, st.st_mtime, md5, file->d_name) < 0) {
-		fprintf(stderr, "write_file failed\n");
+		fprintf(stderr, "add_shared_file error - write_file failed\n");
 		return -1;
 	}
 	if (write_diff(fd_diff, '+', md5, file->d_name) < 0) {
-		fprintf(stderr, "write_diff failed\n");
+		fprintf(stderr, "add_shared_file error - write_diff failed\n");
 		return -1;
 	}
 
@@ -122,7 +122,7 @@ int add_shared_files(int fd_share, int fd_diff, struct dirent **flist, int start
 
 	for (i = start_indx; i < nfile; i ++) {
 		if (add_shared_file(fd_share, fd_diff, flist[i], dir) < 0) {
-			fprintf(stderr, "add file failed\n");
+			fprintf(stderr, "add_share_files error - add file failed\n");
 			return -1;
 		}
 		free(flist[i]);
@@ -141,7 +141,7 @@ int add_dir(int fdnew, int fddiff, const char *share_dir) {
 
 
 	if ((nfile = scandir(share_dir, &flist, selfile, alphasort)) < 0) {
-		perror("flist - dirent failed");
+		perror("add_dir error - scandir failed");
 		return -1;
 	}
 	if (lstat(share_dir, &st) < 0) {
@@ -150,13 +150,12 @@ int add_dir(int fdnew, int fddiff, const char *share_dir) {
 	}
 
 	if (write_dir(fdnew, st.st_mtime, share_dir) < 0) {
-		fprintf(stderr, "write_dir failed\n");
+		fprintf(stderr, "add_dir error - write_dir failed\n");
 		return -1;
 	}
 
-//	printf("%s\n", share_dir);
 	if (add_shared_files(fdnew, fddiff, flist, 0, nfile, share_dir) < 0) {
-		fprintf(stderr, "add_files failed\n");
+		fprintf(stderr, "add_dir error - add_files failed\n");
 		return -1;
 	}
 
@@ -176,15 +175,15 @@ int update_file(int fdnew, int fddiff, time_t modtime, const char *fpath, const 
 	tmp3[32] = 0;
 	printf("Nuovo md5: %s\n", tmp3);
 	if (write_diff(fddiff, '-', old_md5, fname) < 0) {
-		fprintf(stderr, "write_diff failed\n");
+		fprintf(stderr, "update_file error - write_diff failed\n");
 		return -1;
 	}
 	if (write_diff(fddiff, '+', md5, fname) < 0) {
-		fprintf(stderr, "write_diff failed\n");
+		fprintf(stderr, "update_file error - write_diff failed\n");
 		return -1;
 	}
 	if (write_file(fdnew, modtime, md5, fname) < 0) {
-		fprintf(stderr, "write_file failed\n");
+		fprintf(stderr, "update_file error - write_file failed\n");
 		return -1;
 	}
 
@@ -214,10 +213,9 @@ int remove_dir(int fd_share, int fd_diff) {
 			return -1;
 		}
 
-		//printf("%s", fname);
 		fname[nread - 1] = 0;
 		if (write_diff(fd_diff, '-', (const unsigned char *)(buf + sizeof(int) + 1), fname) < 0) {
-			fprintf(stderr, "write_diff failed\n");
+			fprintf(stderr, "remove_dir error - write_diff failed\n");
 			return -1;
 		}
 	}
@@ -287,19 +285,19 @@ int update_dir(int fd_share, int fdnew, int fddiff, const char *share_dir) {
 	int i = 0, m;
 
 	if ((nfile = scandir(share_dir, &flist, selfile, alphasort)) < 0) {
-		perror("flist - dirent failed");
+		perror("update_dir error - dirent failed");
 		return -1;
 	}
 
 	while (i < nfile) {				
 		if ((nread = read(fd_share, buf, MD5_DIGEST_LENGTH + sizeof(modtime) + 1)) < 0) {
-			perror("bad read");
+			perror("update_dir error - read failed");
 			return -1;
 		}
 
 		if (nread == 0) {
 			if ((i = add_shared_files(fdnew, fddiff, flist, i, nfile, share_dir)) < 0) {
-				fprintf(stderr, "add_files failed\n");
+				fprintf(stderr, "update_dir error - add_files failed\n");
 				return -1;
 			}
 		} else {
@@ -308,23 +306,21 @@ int update_dir(int fd_share, int fdnew, int fddiff, const char *share_dir) {
 				break;
 			} 
 			if (nread != MD5_DIGEST_LENGTH + sizeof(modtime) + 1 || *buf != '%') {
-				fprintf(stderr, "bad file format\n");
+				fprintf(stderr, "update_dir error - bad file format\n");
 				return -1;
 			}
 
 			if ((nread = readline(fd_share, fname, 256)) < 0) {
-				perror("bad read");
+				perror("update_dir error - read failed");
 				return -1;
 			}
 
 			fname[nread - 1] = 0;
-			//printf("File letto: %s\n", fname);
-			//printf("File corrente: %s\n", flist[i]->d_name);
 
 			if ((m = strcmp(fname, flist[i]->d_name)) == 0) {
 				sprintf(tmp, "%s/%s", share_dir, fname);
 				if (lstat(tmp, &st) < 0) {
-					perror("create error - lstat failed");
+					perror("update_dir error - lstat failed");
 					return -1;
 				}
 
@@ -335,7 +331,7 @@ int update_dir(int fd_share, int fdnew, int fddiff, const char *share_dir) {
 					write(fdnew, buf, MD5_DIGEST_LENGTH + sizeof(modtime) + strlen(fname) + 2);
 				} else {
 					if (update_file(fdnew, fddiff, modtime, tmp, fname, (const unsigned char *)(buf + sizeof(modtime) + 1)) < 0) {
-						fprintf(stderr, "update_file failed\n");
+						fprintf(stderr, "update_dir error - update_file failed\n");
 						return -1;
 					}
 				}
@@ -343,12 +339,12 @@ int update_dir(int fd_share, int fdnew, int fddiff, const char *share_dir) {
 				i ++;
 			} else if (m < 0) {
 				if (write_diff(fddiff, '-', (const unsigned char *)(buf + sizeof(modtime) + 1), fname) < 0) {
-					fprintf(stderr, "write_diff failed\n");
+					fprintf(stderr, "update_dir error - write_diff failed\n");
 					return -1;
 				}
 			} else {
 				if (add_shared_file(fdnew, fddiff, flist[i], share_dir) < 0) {
-					fprintf(stderr, "add_shared_file failed\n");
+					fprintf(stderr, "update_dir error - add_shared_file failed\n");
 					return -1;
 				}
 				lseek(fd_share, -1 * (nread + MD5_DIGEST_LENGTH + sizeof(modtime) + 1), SEEK_CUR);
@@ -361,12 +357,12 @@ int update_dir(int fd_share, int fdnew, int fddiff, const char *share_dir) {
 
 	if (i < nfile) {
 		if (add_shared_files(fdnew, fddiff, flist, i, nfile, share_dir) < 0) {
-			fprintf(stderr, "add_shared_files failed\n");
+			fprintf(stderr, "update_dir error - add_shared_files failed\n");
 			return -1;
 		}
 	}
 	if (remove_dir(fd_share, fddiff) < 0) {
-		fprintf(stderr, "remove_dir failed\n");
+		fprintf(stderr, "update_dir error - remove_dir failed\n");
 		return -1;
 	}
 
@@ -417,30 +413,30 @@ int diff(int fd_share, int fdnew, int fddiff, const char *share_dir, int flag) {
 	int mtime;
 
 	if ((ndir = scandir(share_dir, &dlist, seldir, alphasort)) < 0) {
-		perror("flist - dirent failed");
+		perror("diff error - dirent failed");
 		return -1;
 	}	
 
 	if ((nread = read(fd_share, buf, sizeof(modtime) + 1)) < 0) {
-		perror("bad read");
+		perror("diff error - read failed");
 		return -1;
 	}
 
 	if (nread == 0) {
 		if (add_dir(fdnew, fddiff, share_dir) < 0) {
-			fprintf(stderr, "add_dir failed\n");
+			fprintf(stderr, "diff error - add_dir failed\n");
 			return -1;
 		}
 	} else {
 		if (nread != sizeof(modtime) + 1 || *buf != '#') {
-			fprintf(stderr, "bad file format\n");
+			fprintf(stderr, "diff error - bad file format\n");
 			return -1;
 		}
 
 		mtime = *((int *)(buf + 1));
 
 		if ((nread = readline(fd_share, tmp2, MAXLINE)) < 0) {
-			perror("bad read");
+			perror("diff error - readline failed");
 			return -1;
 		}
 
@@ -449,7 +445,7 @@ int diff(int fd_share, int fdnew, int fddiff, const char *share_dir, int flag) {
 
 		if ((m = strcmp(tmp2, share_dir)) == 0) {
 			if (lstat(share_dir, &st) < 0) {
-				perror("create error - lstat failed");
+				perror("diff error - lstat failed");
 				return -1;
 			}
 
@@ -457,24 +453,24 @@ int diff(int fd_share, int fdnew, int fddiff, const char *share_dir, int flag) {
 			write_dir(fdnew, modtime, share_dir);
 			if (mtime == modtime) {
 				if (copy_dir(fd_share, fdnew) < 0) {
-					fprintf(stderr, "copy_dir failed\n");
+					fprintf(stderr, "diff error - copy_dir failed\n");
 					return -1;
 				}
 			} else {
 				if (update_dir(fd_share, fdnew, fddiff, share_dir) < 0) {
-					fprintf(stderr, "update_dir failed\n");
+					fprintf(stderr, "diff error - update_dir failed\n");
 					return -1;
 				}
 			}
 		} else if (m < 0) {
 			if (remove_dir(fd_share, fddiff) < 0) {
-				fprintf(stderr, "remove_dir failed\n");
+				fprintf(stderr, "diff error - remove_dir failed\n");
 				return -1;
 			}
 			return diff(fd_share, fdnew, fddiff, share_dir, 1);
 		} else {
 			if (add_dir(fdnew, fddiff, share_dir) < 0) {
-				fprintf(stderr, "add_dir failed\n");
+				fprintf(stderr, "diff error - add_dir failed\n");
 				return -1;
 			}
 			lseek(fd_share, -1 * (sizeof(modtime) + nread + 1), SEEK_CUR);
@@ -491,7 +487,7 @@ int diff(int fd_share, int fdnew, int fddiff, const char *share_dir, int flag) {
 
 	if (flag == 0) {
 		if (remove_all_files(fd_share, fddiff) < 0) {
-			fprintf(stderr, "remove_all_files failed\n");
+			fprintf(stderr, "diff error - remove_all_files failed\n");
 			return -1;
 		}
 	}
@@ -507,22 +503,22 @@ int create_diff(const char *share_dir) {
 
 	if ((fdshare = open(FILE_SHARE, O_RDONLY)) < 0) {
 		if (errno != ENOENT) {
-			perror("bad open");
+			perror("create_diff error - open failed");
 			return -1;
 		}
 		if ((fdshare = open(FILE_SHARE, O_RDWR | O_CREAT, 0644)) < 0) {
-			perror("bad open");
+			perror("create_diff error - open failed");
 			return -1;
 		}
 	}
 
 	if ((fdnew = open(FILE_TMP, O_WRONLY | O_CREAT | O_TRUNC, 0644)) < 0) {
-		perror("bad open");
+		perror("create_diff error - open failed");
 		return -1;
 	}
 
 	if ((fddiff = open(FILE_DIFF, O_WRONLY | O_CREAT | O_TRUNC, 0644)) < 0) {
-		perror("bad open");
+		perror("create_diff error - open failed");
 		return -1;
 	}
 
@@ -532,27 +528,27 @@ int create_diff(const char *share_dir) {
 	}
 
 	if (close(fdshare) < 0) {
-		perror("bad close");
+		perror("create_diff error - close failed");
 		return -1;
 	}
 	
 	if (close(fdnew) < 0) {
-		perror("bad close");
+		perror("create_diff error - close failed");
 		return -1;
 	}
 	
 	if (close(fddiff) < 0) {
-		perror("bad close");
+		perror("create_diff error - close failed");
 		return -1;
 	}
 
 	if (unlink(FILE_SHARE) < 0) {
-		perror("bad unlink");
+		perror("create_diff error - unlink failed");
 		return -1;
 	}
 
 	if (rename(FILE_TMP, FILE_SHARE) < 0) {
-		perror("bad rename");
+		perror("create_diff error - rename failed");
 		return -1;
 	}
 

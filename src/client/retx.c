@@ -94,7 +94,7 @@ int retx_stop(int pck_index, char *pck_cmd) {
 	tmp_node = get_packet_node(pck_index);
 
 	if (tmp_node == NULL) {
-		return 0;
+		return 1;
 	}
 
 	if (pck_cmd != NULL) {

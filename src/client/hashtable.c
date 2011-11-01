@@ -18,6 +18,10 @@ void print_results_md5(const struct md5_info *results) {
 	struct in_addr addr;
 	char md5_hex[MD5_DIGEST_LENGTH * 2 + 1];
 
+	if (results == NULL) {
+		return;
+	}
+
 	to_hex(md5_hex, results->info->addr->md5->md5);
 	md5_hex[MD5_DIGEST_LENGTH * 2] = 0;
 	while (results != NULL) {
@@ -171,6 +175,19 @@ int insert_file(const char *str, const unsigned char *md5, unsigned long ip, uns
 
 		} else {
 			//NO COLLISIONE
+			
+			
+			new_addr_node = entry->addr_list;
+
+			while (new_addr_node != NULL) {
+				if (new_addr_node->ip == ip && new_addr_node->port == port) {
+					if (!memcmp(new_addr_node->md5->md5, md5, MD5_DIGEST_LENGTH)) {
+						return 0;
+					}
+				}
+				new_addr_node = new_addr_node->next;
+			}
+			
 			new_addr_node = create_new_addr_node(ip, port);
 			new_addr_node->next = entry->addr_list;
 			entry->addr_list->prev = new_addr_node;
