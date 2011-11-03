@@ -33,8 +33,8 @@ void peer_list_checker_func(void *args) {
 	struct timespec sleep_time;
 	struct node *tmp_node;
 	struct node *to_remove;
-	struct request_node *req_it;
 	int rc;
+	short promote_ttl = 5;
 
 	printf("AVVIO PROCESSO DI CONTROLLO LISTA P\n");
 
@@ -84,20 +84,32 @@ void peer_list_checker_func(void *args) {
 			fprintf(stderr, "peer_list_checker_func error - can't acquire lock: %s\n", strerror(rc));
 			pthread_exit((void *)-1);
 		}
-		req_it = request_fifo_tail;
+		tmp_node = request_list_head;
 
-		while (req_it != NULL) {
-			if (req_it->ttl == 0) {
-				remove_cascade_request(req_it);
-				break;
+		while (tmp_node != NULL) {
+			to_remove = tmp_node;
+			tmp_node = tmp_node->next;
+
+			if (((struct request_node *)to_remove->data)->ttl == 0) {
+				remove_request_node(to_remove);
 			} else {
-				req_it->ttl --;
+				((struct request_node *)to_remove->data)->ttl --;
 			}
-			req_it = req_it->next;
 		}
 		if ((rc = pthread_mutex_unlock(&plchinfo->request_mutex)) != 0) {
 			fprintf(stderr, "peer_list_checker_func error - can't release lock: %s\n", strerror(rc));
 			pthread_exit((void *)-1);
+		}
+
+		if (state == ST_PROMOTE_SENT) {
+			if (promote_ttl == 0) {
+				state = ST_ACTIVE;
+				promote_ttl = 5;
+			} else {
+				promote_ttl --;
+			}
+		} else {
+			promote_ttl = 5;
 		}
 
 	}

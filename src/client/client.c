@@ -538,8 +538,8 @@ int add_sp_file(unsigned long ip, unsigned short port) {
 int send_share(int udp_sock, const struct sockaddr_in *addr) {
 	int fd;
 	struct packet pck;
-	char buf[MAXLINE];
-	char tmp[MAXLINE];
+	char buf[MAX_PACKET_SIZE];
+	char tmp[MAX_PACKET_SIZE];
 	int n, rc, count = 0;
 
 	if ((fd = open(FILE_DIFF, O_RDONLY)) < 0) {
@@ -578,7 +578,7 @@ int send_share(int udp_sock, const struct sockaddr_in *addr) {
 					return -1;
 				} else {
 					if (count + n + MD5_DIGEST_LENGTH + 1 < MAXLINE - sizeof(short)) {
-						memcpy(tmp + count + sizeof(short), buf, count + n + MD5_DIGEST_LENGTH + 1);	
+						memcpy(tmp + count + sizeof(short), buf, n + MD5_DIGEST_LENGTH + 1);	
 						count += n + MD5_DIGEST_LENGTH + 1;
 					} else {
 						new_packet(&pck, CMD_UPDATE_FILE_LIST, get_index(), tmp, count + sizeof(short), 0);

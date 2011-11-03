@@ -8,6 +8,7 @@
 #include "thread_util.h"
 #include "hashtable.h"
 #include "fifo_request.h"
+#include "state.h"
 
 #define PL_CHECK_TIME 6
 

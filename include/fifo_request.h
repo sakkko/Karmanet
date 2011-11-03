@@ -1,7 +1,7 @@
 #ifndef _FIFO_REQUEST_H
 #define _FIFO_REQUEST_H
 
-#include <malloc.h>
+#include "list.h"
 
 #define REQUEST_TTL 3
 
@@ -10,14 +10,24 @@ struct request_node {
 	unsigned long ip_sender;
 	unsigned short port;
 	unsigned short ttl;
-	struct request_node* next;
 };
 
 
-struct request_node *request_fifo_tail;
+struct node *request_list_head;
 
-int insert_request(unsigned short id, unsigned long ip, unsigned short port);
+/*
+* Funzione che inserisce un indirizzo in testa alla lista.
+*/
+int insert_request(unsigned short id, unsigned long ip_sender, unsigned short port);
 
-void remove_cascade_request(struct request_node *to_remove);
+struct request_node *new_request_node(unsigned short id, unsigned long ip_sender, unsigned short port);
+
+void remove_request(unsigned short id, unsigned long ip_sender, unsigned short port);
+
+struct node *get_request_node(unsigned short id, unsigned long ip_sender, unsigned short port);
+
+void remove_request_node(struct node *request_node);
+
+void free_list_request();
 
 #endif

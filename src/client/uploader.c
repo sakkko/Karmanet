@@ -4,16 +4,11 @@ void uploader_func(void *args) {
 	struct uploader_info *ulinfo = (struct uploader_info *)args;
 	struct packet send_pck, recv_pck;
 	int fd;
-	struct timespec sleep_time;
 	int rc;
 	char buf[MAXLINE];
 	char str[16];
 	int i;
 
-	sleep_time.tv_sec = TIME_TO_SLEEP;
-	sleep_time.tv_nsec = 0;
-
-	
 	while (1) {
 		if ((rc = pthread_mutex_unlock(&ulinfo->th_mutex)) != 0) {
 			fprintf(stderr, "uploader_func error - can't release lock: %s\n", strerror(rc));
