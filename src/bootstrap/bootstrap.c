@@ -148,6 +148,22 @@ int sp_join(int sockfd, const struct sockaddr_in *addr, const struct packet *pck
 		insert_sp(addr);
 
 	} else {
+		if (sp_count == 1) {
+			if (addrcmp(&((struct spaddr_node *)sp_list_head->data)->sp_addr, addr)) {
+				new_promote_packet(&promote, pck->index);
+				addr2str(promote.data, addr->sin_addr.s_addr, addr->sin_port);
+				promote.data_len = 6;	
+				printf("INVIO PROMOTE\n");
+				if (send_packet(sockfd, addr, &promote) < 0) {
+					perror("errore in sendto");
+				}
+				if ((rc = pthread_mutex_unlock(&splchinfo->thinfo.mutex)) != 0) {
+					fprintf(stderr, "join error - can't release lock: %s\n", strerror(rc));
+					return -1;
+				}
+				return 0;
+			} 
+		}
 		if (send_addr_list(sockfd, addr, pck) < 0) {
 			perror("errore invio lista IP");
 		}

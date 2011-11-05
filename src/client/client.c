@@ -786,13 +786,15 @@ int whohas_request_handler(int socksd, int udp_sock, const struct packet *pck, c
 	}
 	
 	if (tmp == 1) {
+		printf("RICHIESTA GIA PROCESSATA\n");
 		return 0;
 	}
 	
 	pckcpy(&tmp_pck, pck);
 	if (overlay == 0) {
 		//il whohas è arrivato da un peer (socket udp)
-		addr2str(tmp_pck.data, addr->sin_addr.s_addr, conf.udp_port);
+		//inserisco nel pacchetto l'indirizzo del peer che ha generato la richiesta
+		addr2str(tmp_pck.data, addr->sin_addr.s_addr, addr->sin_port);
 		memcpy(tmp_pck.data + ADDR_STR_LEN, pck->data, pck->data_len);
 		tmp_pck.data_len += ADDR_STR_LEN;
 	} else {
@@ -899,7 +901,6 @@ int whohas_response_handler_md5(const struct packet *pck) {
 int whohas_response_handler(int udp_sock, const struct packet *pck, const struct sockaddr_in *addr) {
 	struct packet send_pck;
 
-	printf("INVIO ACK\n");
 	new_ack_packet(&send_pck, pck->index);
 	if (mutex_send(udp_sock, addr, &send_pck) < 0) {
 		fprintf(stderr, "udp_handler error - mutex_send failed\n");
@@ -1341,7 +1342,6 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 int promote_handler(int udp_sock, const struct sockaddr_in *recv_addr, const struct sockaddr_in *bs_addr, const struct packet *recv_pck) {
 	struct packet send_pck;
 
-	
 	if (retx_stop(recv_pck->index, NULL) < 0) {
 		fprintf(stderr, "promote_handler error - retx_stop failed\n");
 		return -1;
