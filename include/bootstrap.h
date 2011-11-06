@@ -10,8 +10,11 @@
 #include "sp_list.h"
 #include "sp_list_checker.h"
 
-#define TIME_CHECK_FLAG 6
+#define ADDR_TOSEND 2
+
 #define SERV_PORT 5193
+
+int addr_to_send;
 
 int sp_join(int sockfd, const struct sockaddr_in *addr, const struct packet *pck, struct sp_list_checker_info *splchinfo);
 

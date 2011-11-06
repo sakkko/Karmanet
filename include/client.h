@@ -34,8 +34,6 @@
 
 #define BS_PORT 5193
 
-#define MAX_P_COUNT 1  //numero massimo di peer connessi a me stesso
-#define MAX_REDIRECT_COUNT 0 //numero massimo di redirect
 
 #define MAX_BS_ERROR 5
 
@@ -57,7 +55,6 @@ struct retx_info retx;
 struct sockaddr_in *addr_list;
 int addr_list_len;
 int curr_addr_index;
-int curr_redirect_count;
 
 void set_rate();
 

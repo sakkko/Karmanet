@@ -146,7 +146,6 @@ int sp_join(int sockfd, const struct sockaddr_in *addr, const struct packet *pck
 			perror("errore in sendto");
 		}
 		insert_sp(addr);
-
 	} else {
 		if (sp_count == 1) {
 			if (addrcmp(&((struct spaddr_node *)sp_list_head->data)->sp_addr, addr)) {
@@ -164,6 +163,7 @@ int sp_join(int sockfd, const struct sockaddr_in *addr, const struct packet *pck
 				return 0;
 			} 
 		}
+
 		if (send_addr_list(sockfd, addr, pck) < 0) {
 			perror("errore invio lista IP");
 		}
@@ -199,6 +199,8 @@ int main(int argc, char **argv) {
         return 1;
      }
 
+	addr_to_send = ADDR_TOSEND;
+
 	//inizializzo struttura da passare al thread che controlla la lista dei superpeer
 	spl_check_info.sp_list = &sp_list_head;
 	//faccio partire il thread che controlla la lista di superpeer
@@ -217,10 +219,6 @@ int main(int argc, char **argv) {
 		strncpy(strcmd, recv_pck.cmd, CMD_STR_LEN);
 		strcmd[CMD_STR_LEN] = 0;
 		inet_ntop(AF_INET, &addr.sin_addr, str, 15);
-	//	printf("ricevuto pachetto\n");
-	//	printf("from %s:%d\n", str,ntohs(addr.sin_port));
-	//	printf("data:%s\n", recv_pck.data);
-	//	printf("cmd:%s\n", strcmd);
 
 		if (!strncmp(recv_pck.cmd, CMD_PING, CMD_STR_LEN)) {
 			//aggiorno il flag del superpeer che mi ha pingato

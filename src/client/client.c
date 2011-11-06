@@ -226,6 +226,7 @@ int init_transfer() {
 
 	download_count = 0;
 	upload_count = 0;
+	printf("PIPE = %d\n", thread_pipe[1]);
 	if (downloader_init(conf.max_download, thread_pipe[1], &pipe_mutex) < 0) {
 		fprintf(stderr, "init_tranfer error - downloader_init failed\n");
 		return -1;
@@ -1277,6 +1278,8 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 			}
 			pthread_mutex_destroy(&NEAR_LIST_LOCK);
 			fd_remove(tcp_listen);
+			free(near_str);
+			near_str = NULL;
 			new_packet(&send_pck, CMD_ABORT, get_index(), NULL, 0, 1);
 			if (retx_send(udp_sock, &pinger.addr_to_ping, &send_pck) < 0) {
 				fprintf(stderr, "list_handler error - retx_send failed\n");
@@ -1286,17 +1289,22 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 		} else if(ret == 1) {
 			if (join_ov_try >= MAX_JOIN_OV_TRY) {
 				if (nsock == 0) {
-			printf("CHIUDO LA LISTEN SOCK\n");
+					printf("CHIUDO LA LISTEN SOCK\n");
 					if (close(tcp_listen) < 0) {
 						perror("bad close");
 					}
 					pthread_mutex_destroy(&NEAR_LIST_LOCK);
 					fd_remove(tcp_listen);
+					free(near_str);
+					near_str = NULL;
 					new_packet(&send_pck, CMD_ABORT, get_index(), NULL, 0, 1);
 					if (retx_send(udp_sock, &pinger.addr_to_ping, &send_pck) < 0) {
 						fprintf(stderr, "list_handler error - retx_send failed\n");
 						return -1;
 					}
+					join_ov_try = 0;
+					state = ST_ACTIVE;
+					return 0;
 				} else {
 					new_register_packet(&send_pck, get_index());
 					if (retx_send(udp_sock, bs_addr, &send_pck) < 0) {
@@ -1307,9 +1315,6 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 					state = ST_REGISTER_SENT;
 					return 0;
 				}
-				join_ov_try = 0;
-				state = ST_ACTIVE;
-				return 0;
 			}
 			join_ov_try ++;
 			new_join_packet(&send_pck, get_index());
@@ -1598,6 +1603,8 @@ int error_handler(int udp_sock, const char *errstr, const struct sockaddr_in *bs
 	struct packet send_pck;
 	int index;
 
+	printf("ERROR HANDLER\n");
+
 	if (!strncmp(errstr, CMD_JOIN, CMD_STR_LEN)) {
 		if (state == ST_JOINBS_SENT) {
 			printf("Impossibile contattare il server di bootstrap\n");
@@ -1816,19 +1823,27 @@ int main(int argc,char *argv[]) {
 				fprintf(stderr, "accept_conn failed\n");
 			//	return 1;
 			}
+
 		} else if (fd_ready(dw_listen_sock)) {
 			if ((sock = accept(dw_listen_sock, NULL, NULL)) < 0) {
 				perror("accept failed");
-			//	return 1;
+				continue;
 			}
 			if (upload_count < conf.max_upload) {
 				for (i = 0; i < conf.max_upload; i ++) {
 					if (ul_pool[i].sleeping == 1) {
-						pthread_mutex_lock(&ul_pool[i].th_mutex);
+						if (pthread_mutex_lock(&ul_pool[i].th_mutex) != 0) {
+							printf("ERRORE\n");
+							continue;
+						}
 						ul_pool[i].ulnode.socksd = sock;
 						ul_pool[i].sleeping = 0;
 						pthread_cond_signal(&ul_pool[i].th_cond);
-						pthread_mutex_unlock(&ul_pool[i].th_mutex);
+						if (pthread_mutex_unlock(&ul_pool[i].th_mutex) < 0) {
+							printf("ERRORE\n");
+							continue;
+						}
+
 						upload_count ++;
 						printf("UPLOADS: %d\n", upload_count);
 						break;

@@ -17,6 +17,7 @@
 
 #define DOWNLOAD_DIR "../download"
 #define PART_DIR "../download/part"
+#define DOWNLOADS_FILE "../download/part/.downloads"
 
 #define INFO_STR_LEN MD5_DIGEST_LENGTH + sizeof(int) * 3
 

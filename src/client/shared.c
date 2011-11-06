@@ -171,9 +171,10 @@ int update_file(int fdnew, int fddiff, time_t modtime, const char *fpath, const 
 
 	printf("Calcolo nuovo md5 per %s\n", fname);
 	getMD5fname(fpath, md5); 
-	//to_hex(tmp3, md5);
+	to_hex(tmp3, md5);
 	tmp3[32] = 0;
 	printf("Nuovo md5: %s\n", tmp3);
+
 	if (write_diff(fddiff, '-', old_md5, fname) < 0) {
 		fprintf(stderr, "update_file error - write_diff failed\n");
 		return -1;

@@ -36,5 +36,7 @@ void get_dirpath(char *destpath, const char *fullpath);
 
 int get_file_size(int fd);
 
+int readstr(int fd, void *vptr, int maxlen);
+
 #endif
 

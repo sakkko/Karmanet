@@ -8,12 +8,16 @@
 int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
 	int i, ok = 1;
 	int sock_tmp;
-	char buf;
 	int addr_check = 0;
 	int j, nread;
 	struct sockaddr_in *addr_list;
+	struct packet recv_pck;
 
-	memset(near_str, 0, MAX_TCP_SOCKET * 6);
+
+	if (list_len > max_tcp_sock / 2) {
+		near_str = (char *)realloc(near_str, list_len * 2 * ADDR_STR_LEN);
+		memset(near_str + max_tcp_sock * ADDR_STR_LEN, 0, (list_len * 2 - max_tcp_sock) * ADDR_STR_LEN);
+	}
 
 	for (i = 0; i < list_len; i ++) {
 		if (get_near_by_addr(&sp_addr_list[i]) != NULL) {
@@ -40,13 +44,8 @@ int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
 			}
 			ok = 1;
 
-			if (write(sock_tmp, (char *)&conf.udp_port, sizeof(conf.udp_port)) < 0) {
-				perror("join_overlay error - write failed\n");
-				return -1;
-			}
-
-			if ((nread = read(sock_tmp, &buf, 1)) < 0) {
-				perror("join_overlay error - read failed");
+			if ((nread = recv_packet_tcp(sock_tmp, &recv_pck)) < 0) {
+				perror("join_overlay error - recv_packet_tcp failed\n");
 				return -1;
 			} else if (nread == 0) {
 				printf("join_overlay - connection closed by superpeer\n");
@@ -57,19 +56,41 @@ int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
 				continue;	
 			}
 
-			fd_add(sock_tmp);
-			if (insert_near(sock_tmp, &sp_addr_list[i]) < 0) {
-				fprintf(stderr, "join_overlay error - insert_near failed\n");
-				return -1;
-			}
+			if (!strncmp(recv_pck.cmd, CMD_ACK, CMD_STR_LEN)) {
+				if (write(sock_tmp, (char *)&conf.udp_port, sizeof(conf.udp_port)) < 0) {
+					perror("join_overlay error - write failed\n");
+					return -1;
+				}
+				fd_add(sock_tmp);
+				if (insert_near(sock_tmp, &sp_addr_list[i]) < 0) {
+					fprintf(stderr, "join_overlay error - insert_near failed\n");
+					return -1;
+				}
 
-			addr2str(near_str + nsock * 6, sp_addr_list[i].sin_addr.s_addr, sp_addr_list[i].sin_port);	
-			addr_list = str_to_addr(near_str, MAX_TCP_SOCKET);
-			for(j = 0; j < MAX_TCP_SOCKET; j ++){
-				printf("join_overlay - near %s:%d\n", inet_ntoa(addr_list[j].sin_addr), ntohs(addr_list[j].sin_port));
-			}
+				addr2str(near_str + nsock * 6, sp_addr_list[i].sin_addr.s_addr, sp_addr_list[i].sin_port);	
+				addr_list = str_to_addr(near_str, max_tcp_sock);
+				for(j = 0; j < max_tcp_sock; j ++){
+					printf("join_overlay - near %s:%d\n", inet_ntoa(addr_list[j].sin_addr), ntohs(addr_list[j].sin_port));
+				}
 
-			nsock ++;
+				nsock ++;
+
+			} else if (!strncmp(recv_pck.cmd, CMD_ERR, CMD_STR_LEN)) {
+				printf("RICEVUTO ERR\n");
+				printf("join_overlay - connection closed by superpeer\n");
+				if (close(sock_tmp) < 0) {
+					perror("join_overlay error - close failed");
+					return -1;
+				}
+				continue;	
+			} else {
+				fprintf(stderr, "join_overlay error - packet not expected\n");
+				if (close(sock_tmp) < 0) {
+					perror("join_overlay error - close failed");
+					return -1;
+				}
+				continue;	
+			}
 		}
 	}
 
@@ -100,6 +121,12 @@ int init_superpeer(const struct sockaddr_in *sp_addr_list, int list_len) {
 	curr_child_redirect = 0; 
 	join_ov_try = 0;
 
+	max_tcp_sock = MAX_TCP_SOCKET;
+	if (near_str != NULL) {
+		free(near_str);
+	}
+	near_str = (char *)malloc(max_tcp_sock * ADDR_STR_LEN);
+	memset(near_str, 0, max_tcp_sock * ADDR_STR_LEN);
 	//inizializzo socket di ascolto
 	if (set_listen_socket(conf.udp_port) < 0) {
 		fprintf(stderr, "init_superpeer error - set_listen_socket failed\n");
@@ -131,7 +158,6 @@ int init_superpeer(const struct sockaddr_in *sp_addr_list, int list_len) {
  * Funzione che inizializza la socket di ascolto tcp.
  * Ritorna 0 in caso successo e -1 in caso di errore.
  */
- 
 int set_listen_socket(unsigned short port) {
 	struct sockaddr_in my_addr;
 	int on = 1;
@@ -249,19 +275,31 @@ int accept_conn(int tcp_list) {
 	struct sockaddr_in *addr_list;
 	struct sockaddr_in addr;
 	unsigned int len = sizeof(struct sockaddr_in);
+	struct packet send_pck;
 
 	if ((sock_tmp = accept(tcp_list, (struct sockaddr*)&addr, &len)) < 0) {
 		perror("accept_conn error - accept failed");
 		return -1;
 	}
-	if (nsock >= MAX_TCP_SOCKET) {
+	if (nsock >= max_tcp_sock) {
 		printf("accept_conn - can't accept more connection %s:%u\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+		new_err_packet(&send_pck, 0);
+		if (send_packet_tcp(sock_tmp, &send_pck) < 0) {
+			perror("bad write");
+			return -1;
+		}
 		if (close(sock_tmp) < 0) {
 			perror("accept_conn error - close failed");
 			return -1;
 		}
 		return 0;
 	}
+	new_ack_packet(&send_pck, 0);
+	if (send_packet_tcp(sock_tmp, &send_pck) < 0) {
+		perror("bad write");
+		return -1;
+	}
+
 	if ((nread = read(sock_tmp, (char *)&port, sizeof(port))) != sizeof(port)) {
 		if (nread < 0) {
 			perror("accept_conn error - read failed");
@@ -271,10 +309,6 @@ int accept_conn(int tcp_list) {
 		return -1;
 	}
 
-	if (write(sock_tmp, "X", 1) < 0) {
-		perror("bad write");
-		return -1;
-	}
 	printf("connessione accettata da %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 
 	fd_add(sock_tmp);
@@ -296,8 +330,8 @@ int accept_conn(int tcp_list) {
 		return -1;
 	}
 
-	addr_list = str_to_addr(near_str, MAX_TCP_SOCKET);
-	for(j = 0 ; j < MAX_TCP_SOCKET; j ++){
+	addr_list = str_to_addr(near_str, max_tcp_sock);
+	for(j = 0 ; j < max_tcp_sock; j ++){
 		printf("accept - near %s:%d\n", inet_ntoa(addr_list[j].sin_addr), ntohs(addr_list[j].sin_port));
 	}
 	nsock ++;
@@ -328,7 +362,7 @@ int close_conn(int sock) {
 
 void set_near() {
 	struct near_node *iterator = near_list_head;
-	memset(near_str, 0, MAX_TCP_SOCKET * 6);
+	memset(near_str, 0, max_tcp_sock * 6);
 	int n = 0;
 
 	while (iterator != NULL) {

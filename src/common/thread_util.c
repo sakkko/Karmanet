@@ -2,9 +2,9 @@
 
 int write_err(int th_pipe, pthread_mutex_t *pipe_mutex, const char *msg) {
 	int rc;
-	char str[CMD_STR_LEN + 6];
+	char str[32];
 
-	snprintf(str, 10, "ERR %s\n", msg);
+	sprintf(str, "ERR %s\n", msg);
 	if ((rc = pthread_mutex_lock(pipe_mutex)) != 0) {
 		fprintf(stderr, "write_err error - can't acquire lock on pipe: %s\n", strerror(rc));
 		return -1;

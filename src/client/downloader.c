@@ -1,6 +1,7 @@
 #include "downloader.h"
 
 pthread_mutex_t download_list_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t downloads_file_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void downloader_func(void *args) {
 	struct downloader_info *dwinfo = (struct downloader_info *)args;
@@ -10,7 +11,7 @@ void downloader_func(void *args) {
 	struct transfer_node *dwnode;
 	int i, rc;
 	char buf[MAXLINE];
-	char partname[260];
+	char partname[262];
 	int my_chunk_number, miss_chunk_number;
 	int *missing_chunk;
 
@@ -86,9 +87,6 @@ void downloader_func(void *args) {
 
 		print_file_info(&dwnode->file_info);
 
-		sprintf(partname, "%s/%s.part", PART_DIR, dwnode->file_info.filename);
-		printf("part file: %s\n", partname);
-
 		if ((fdpart = open_file_part(partname, dwnode, &miss_chunk_number, &my_chunk_number)) < 0) {
 			fprintf(stderr, "downloader_func error - create_file_part failed\n");
 			kill_connection(dwinfo, dwnode);
@@ -96,6 +94,8 @@ void downloader_func(void *args) {
 			dwnode = NULL;
 			continue; 
 		}
+		
+		printf("File-part name: %s\n", partname);
 
 		if ((missing_chunk = get_missing_chunk(fdpart, dwnode->file_info.chunk_number, my_chunk_number, miss_chunk_number)) == NULL) {
 			fprintf(stderr, "downloader_func error - get_missing_chunk failed\n");
@@ -145,6 +145,8 @@ void downloader_func(void *args) {
 int download(int fd, int fdpart, const char *partname, const struct transfer_node *dwnode, const int *missing_chunk, int miss_chunk_number, int my_chunk_number) {
 	int i;
 
+	printf("Iniziato download del file %s\n", dwnode->file_info.filename);
+
 	for (i = 0; i < miss_chunk_number; i ++) {
 		if (get_chunk(fd, fdpart, dwnode->socksd, missing_chunk[i]) < 0) {
 			fprintf(stderr, "download error - get_chunk failed\n");
@@ -152,7 +154,7 @@ int download(int fd, int fdpart, const char *partname, const struct transfer_nod
 		}
 
 		my_chunk_number ++;
-		if (write_filepart(fdpart, missing_chunk[i], my_chunk_number, dwnode->file_info.filename) < 0) {
+		if (write_filepart(fdpart, missing_chunk[i], my_chunk_number, strlen(dwnode->file_info.filename)) < 0) {
 			fprintf(stderr, "downloader_func error - write_filepart failed\n");
 			return -1;
 		}
@@ -160,8 +162,10 @@ int download(int fd, int fdpart, const char *partname, const struct transfer_nod
 
 
 	if (lseek(fd, 0, SEEK_END) == dwnode->file_info.file_size && my_chunk_number == dwnode->file_info.chunk_number) {
-		printf("FILE COMPLETO\n");
-		if (unlink(partname) < 0) {
+		printf("Completato download del file %s\n", dwnode->file_info.filename);
+
+		if (remove_filepart(partname, dwnode) < 0) {
+			fprintf(stderr, "downloader_func error - open failed");
 			return -1;
 		}
 	}
@@ -169,8 +173,172 @@ int download(int fd, int fdpart, const char *partname, const struct transfer_nod
 	return 0;
 }
 
-int write_filepart(int fdpart, int missing_chunk, int my_chunk_number, const char *filename) {
-	lseek(fdpart, strlen(filename) + MD5_DIGEST_LENGTH + 2 * sizeof(int) + 1, SEEK_SET);
+int remove_filepart(const char *partname, const struct transfer_node *dwnode) {
+	int fddownloads, fdtmp;
+	int nread, rc;
+	char buf[262];
+	unsigned char md5[MD5_DIGEST_LENGTH];
+
+	if (unlink(partname) < 0) {
+		return -1;
+	}
+
+
+	if ((rc = pthread_mutex_lock(&downloads_file_mutex)) != 0) {
+		fprintf(stderr, "remove_filepart error - can't acquire lock: %s\n", strerror(rc));
+		return -1;
+	}
+
+	if ((fddownloads = open(DOWNLOADS_FILE, O_RDONLY)) < 0) {
+		perror("downloader_func error - open failed");
+		if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+			fprintf(stderr, "remove_filepart error - can't release lock: %s\n", strerror(rc));
+		}
+		return -1;
+	}
+
+	if ((fdtmp = open("downloads.tmp", O_WRONLY | O_CREAT | O_TRUNC, 0644)) < 0) {
+		perror("downloader_func error - open failed");
+		if (close(fddownloads) < 0) {
+			perror("downloader_func error - close failed");
+		}
+		if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+			fprintf(stderr, "remove_filepart error - can't release lock: %s\n", strerror(rc));
+		}
+		return -1;
+	}
+
+	while ((nread = read(fddownloads, md5, MD5_DIGEST_LENGTH)) > 0) {
+		if (nread != MD5_DIGEST_LENGTH) {
+			fprintf(stderr, "open_file_part error - bad file format\n");
+			if (close(fddownloads) < 0) {
+				perror("downloader_func error - close failed");
+			}
+			if (close(fdtmp) < 0) {
+				perror("downloader_func error - close failed");
+			}
+			if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+				fprintf(stderr, "remove_filepart error - can't release lock: %s\n", strerror(rc));
+			}
+			return -1;
+		}
+
+		if ((nread = readline(fddownloads, buf, 261)) < 0) {
+			perror("downloader_func error - readline failed");
+			if (close(fddownloads) < 0) {
+				perror("downloader_func error - close failed");
+			}
+			if (close(fdtmp) < 0) {
+				perror("downloader_func error - close failed");
+			}
+			if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+				fprintf(stderr, "remove_filepart error - can't release lock: %s\n", strerror(rc));
+			}
+			return -1;
+		} else if (nread == 0) {
+			fprintf(stderr, "open_file_part error - bad file format\n");
+			if (close(fddownloads) < 0) {
+				perror("downloader_func error - close failed");
+			}
+			if (close(fdtmp) < 0) {
+				perror("downloader_func error - close failed");
+			}
+			if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+				fprintf(stderr, "remove_filepart error - can't release lock: %s\n", strerror(rc));
+			}
+			return -1;
+		}
+
+		if (memcmp(md5, dwnode->file_info.md5, MD5_DIGEST_LENGTH)) {
+			if (write(fdtmp, md5, MD5_DIGEST_LENGTH) < 0) {
+				perror("downloader_func error - write failed");
+				if (close(fddownloads) < 0) {
+					perror("downloader_func error - close failed");
+				}
+				if (close(fdtmp) < 0) {
+					perror("downloader_func error - close failed");
+				}
+				if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+					fprintf(stderr, "remove_filepart error - can't release lock: %s\n", strerror(rc));
+				}
+				return -1;
+			}
+
+			if (write(fdtmp, buf, nread) < 0) {
+				perror("downloader_func error - write failed");
+				if (close(fddownloads) < 0) {
+					perror("downloader_func error - close failed");
+				}
+				if (close(fdtmp) < 0) {
+					perror("downloader_func error - close failed");
+				}
+				if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+					fprintf(stderr, "remove_filepart error - can't release lock: %s\n", strerror(rc));
+				}
+				return -1;
+			}
+		}
+	}
+
+	if (nread < 0) {
+		perror("downloader_func error - read failed");
+		if (close(fddownloads) < 0) {
+			perror("downloader_func error - close failed");
+		}
+		if (close(fdtmp) < 0) {
+			perror("downloader_func error - close failed");
+		}
+		if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+			fprintf(stderr, "remove_filepart error - can't release lock: %s\n", strerror(rc));
+		}
+		return -1;
+	}
+
+	if (close(fddownloads) < 0) {
+		perror("downloader_func error - close failed");
+		if (close(fdtmp) < 0) {
+			perror("downloader_func error - close failed");
+		}
+		if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+			fprintf(stderr, "remove_filepart error - can't release lock: %s\n", strerror(rc));
+		}
+		return -1;
+	}
+
+	if (close(fdtmp) < 0) {
+		perror("downloader_func error - close failed");
+		if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+			fprintf(stderr, "remove_filepart error - can't release lock: %s\n", strerror(rc));
+		}
+		return -1;
+	}
+
+	if (unlink(DOWNLOADS_FILE) < 0) {
+		perror("downloader_func error - unlink failed");
+		if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+			fprintf(stderr, "remove_filepart error - can't release lock: %s\n", strerror(rc));
+		}
+		return -1;
+	}
+
+	if (rename("downloads.tmp", DOWNLOADS_FILE) < 0) {
+		perror("downloader_func error - rename failed");
+		if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+			fprintf(stderr, "remove_filepart error - can't release lock: %s\n", strerror(rc));
+		}
+		return -1;
+	}
+
+	if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+		fprintf(stderr, "remove_filepart error - can't release lock: %s\n", strerror(rc));
+		return -1;
+	}
+
+	return 0;
+}
+
+int write_filepart(int fdpart, int missing_chunk, int my_chunk_number, int filename_len) {
+	lseek(fdpart, filename_len + MD5_DIGEST_LENGTH + 2 * sizeof(int) + 1, SEEK_SET);
 	if (write(fdpart, (char *)&my_chunk_number, sizeof(int)) < 0) {
 		perror("write_filepart error - write failed");
 		return -1;
@@ -213,7 +381,7 @@ int get_chunk(int fd, int fdpart, int socksd, int missing_chunk) {
 		}
 
 		if (!is_set_flag(&recv_pck, PACKET_FLAG_NEXT_CHUNK)) {
-			printf("Chunk %d completato\n", missing_chunk);
+//			printf("Chunk %d completato\n", missing_chunk);
 			return 0;
 		}
 	}
@@ -233,7 +401,7 @@ int kill_connection(struct downloader_info *dwinfo, struct transfer_node *dwnode
 	}
 
 	dwnode->socksd = -1;
-	
+
 	return 0;
 }
 
@@ -307,11 +475,17 @@ int create_file_part(const char *partname, const struct transfer_node *dwnode, i
 
 }
 
-int load_file_part(int fdpart, const char *partname, const struct transfer_node *dwnode, int *miss_chunk_number, int *my_chunk_number) {
+int load_file_part(int fdpart, const char *partname, struct transfer_node *dwnode, int *miss_chunk_number, int *my_chunk_number) {
 	char buf[INFO_STR_LEN];
 	int nread;
 
-	lseek(fdpart, strlen(dwnode->file_info.filename) + 1, SEEK_SET);
+	if ((nread = readstr(fdpart, dwnode->file_info.filename, 255)) < 0) {
+		perror("create_file_part error - readstr failed");
+		return -1;
+	}
+
+	printf("File richiesto esistente, riprendo il download\n");
+	printf("filename: %s\n", dwnode->file_info.filename);
 	if ((nread = read(fdpart, buf, INFO_STR_LEN)) < 0) {
 		perror("create_file_part error - read failed haha");
 		if (close(fdpart) < 0) {
@@ -356,8 +530,115 @@ int load_file_part(int fdpart, const char *partname, const struct transfer_node 
 	return 0;
 }
 
-int open_file_part(const char *partname, const struct transfer_node *dwnode, int *miss_chunk_number, int *my_chunk_number) {
+int get_filepart_name(char *partname, const struct transfer_node *dwnode) {
+	int fddownloads;
+	char buf[263];
+	unsigned char md5[MD5_DIGEST_LENGTH];
+	int nread, rc;
+
+	if ((rc = pthread_mutex_lock(&downloads_file_mutex)) != 0) {
+		fprintf(stderr, "get_filepart_name error - can't acquire lock: %s\n", strerror(rc));
+		return -1;
+	}
+
+	if ((fddownloads = open(DOWNLOADS_FILE, O_RDWR | O_CREAT, 0644)) < 0) {
+		perror("get_filepart_name error - open failed");
+		if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+			fprintf(stderr, "get_filepart_name error - can't release lock: %s\n", strerror(rc));
+		}
+		return -1;
+	}
+
+	while ((nread = read(fddownloads, md5, MD5_DIGEST_LENGTH)) > 0) {
+		if (nread != MD5_DIGEST_LENGTH) {
+			fprintf(stderr, "get_filepart_name error - bad file format\n");
+			if (close(fddownloads) < 0) {
+				perror("get_filepart_name error - close failed");
+			}
+			if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+				fprintf(stderr, "get_filepart_name error - can't release lock: %s\n", strerror(rc));
+			}
+			return -1;
+		}
+
+		if ((nread = readline(fddownloads, buf, 261)) < 0) {
+			perror("get_filepart_name error - readline failed");
+			if (close(fddownloads) < 0) {
+				perror("get_filepart_name error - close failed");
+			}
+			if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+				fprintf(stderr, "get_filepart_name error - can't release lock: %s\n", strerror(rc));
+			}
+			return -1;
+		} else if (nread == 0) {
+			fprintf(stderr, "get_filepart_name error - bad file format\n");
+			if (close(fddownloads) < 0) {
+				perror("get_filepart_name error - close failed");
+			}
+			if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+				fprintf(stderr, "get_filepart_name error - can't release lock: %s\n", strerror(rc));
+			}
+			return -1;
+		}
+
+		buf[nread - 1] = 0;
+
+		if (!memcmp(dwnode->file_info.md5, md5, MD5_DIGEST_LENGTH)) {
+			strncpy(partname, buf, nread - 1);
+			partname[nread - 1] = 0;
+			break;
+		}
+	}
+
+	if (nread == 0) {
+		sprintf(partname, "%s/.%s.part\n", PART_DIR, dwnode->file_info.filename);
+		if (write(fddownloads, dwnode->file_info.md5, MD5_DIGEST_LENGTH) < 0) {
+			perror("get_filepart_name error - write failed");
+			if (close(fddownloads) < 0) {
+				perror("get_filepart_name error - close failed");
+			}
+			if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+				fprintf(stderr, "get_filepart_name error - can't release lock: %s\n", strerror(rc));
+			}
+			return -1;
+		}
+
+		if (write(fddownloads, partname, strlen(partname)) < 0) {
+			perror("get_filepart_name error - write failed");
+			if (close(fddownloads) < 0) {
+				perror("get_filepart_name error - close failed");
+			}
+			if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+				fprintf(stderr, "get_filepart_name error - can't release lock: %s\n", strerror(rc));
+			}
+			return -1;
+		}
+		partname[strlen(partname) - 1] = 0;
+	}
+
+	if (close(fddownloads) < 0) {
+		perror("get_filepart_name error - close failed");
+		if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+			fprintf(stderr, "get_filepart_name error - can't release lock: %s\n", strerror(rc));
+		}
+		return -1;
+	}
+
+	if ((rc = pthread_mutex_unlock(&downloads_file_mutex)) != 0) {
+		fprintf(stderr, "get_filepart_name error - can't release lock: %s\n", strerror(rc));
+		return -1;
+	}
+
+	return 0;
+}
+
+int open_file_part(char *partname, struct transfer_node *dwnode, int *miss_chunk_number, int *my_chunk_number) {
 	int fdpart;
+
+	if (get_filepart_name(partname, dwnode) < 0) {
+		fprintf(stderr, "open_file_part error - get_filepart_name failed\n");
+		return -1;
+	}
 
 	if ((fdpart = open(partname, O_RDWR)) < 0) {
 		if (errno == ENOENT) {

@@ -10,7 +10,7 @@ void uploader_func(void *args) {
 	int i;
 
 	while (1) {
-		if ((rc = pthread_mutex_unlock(&ulinfo->th_mutex)) != 0) {
+		if ((rc = pthread_mutex_lock(&ulinfo->th_mutex)) != 0) {
 			fprintf(stderr, "uploader_func error - can't release lock: %s\n", strerror(rc));
 			pthread_exit((void *)-1);
 		}
@@ -26,6 +26,7 @@ void uploader_func(void *args) {
 		}
 
 		sprintf(str, "GETU %d", ulinfo->index);
+
 		if ((i = recv_packet_tcp(ulinfo->ulnode.socksd, &recv_pck)) < 0) {
 			fprintf(stderr, "uploader_func errror - recv_packet_tcp failed\n");
 			if (close_sock(ulinfo->ulnode.socksd) < 0) {
@@ -84,6 +85,7 @@ void uploader_func(void *args) {
 			if (close_sock(ulinfo->ulnode.socksd) < 0) {
 				perror("uploader_func error - close_sock failed");
 			}
+
 			if (write_err(ulinfo->th_pipe, ulinfo->pipe_mutex, str) < 0) {
 				fprintf(stderr, "uploader_func error - write_err failed\n");
 			}
@@ -100,6 +102,7 @@ void uploader_func(void *args) {
 				fprintf(stderr, "uploader_func error - write_err failed\n");
 			}
 			continue;
+
 		}
 
 		new_get_packet(&send_pck, 0, NULL, 0, 1);

@@ -29,14 +29,18 @@ int fill_file_info(struct transfer_info *file_info, const struct packet *recv_pc
 
 int kill_connection(struct downloader_info *dwinfo, struct transfer_node *dwnode);
 
-int write_filepart(int fdpart, int missing_chunk, int my_chunk_number, const char *filename);
+int write_filepart(int fdpart, int missing_chunk, int my_chunk_number, int filename_len);
 
 int get_chunk(int fd, int fdpart, int socksd, int missing_chunk);
 
-int open_file_part(const char *partname, const struct transfer_node *dwnode, int *miss_chunk_number, int *my_chunk_number);
+int open_file_part(char *partname, struct transfer_node *dwnode, int *miss_chunk_number, int *my_chunk_number);
 
-int load_file_part(int fdpart, const char *partname, const struct transfer_node *dwnode, int *miss_chunk_number, int *my_chunk_number); 
+int load_file_part(int fdpart, const char *partname, struct transfer_node *dwnode, int *miss_chunk_number, int *my_chunk_number);
 
 int download(int fd, int fdpart, const char *partname, const struct transfer_node *dwnode, const int *missing_chunk, int miss_chunk_number, int my_chunk_number);
+
+int get_filepart_name(char *partname, const struct transfer_node *dwnode);
+
+int remove_filepart(const char *partname, const struct transfer_node *dwnode);
 
 #endif

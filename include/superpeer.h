@@ -13,18 +13,25 @@
 
 #include <errno.h>
 
+#define MAX_P_COUNT 2  //numero massimo di peer connessi a me stesso
+#define MAX_REDIRECT_COUNT 1 //numero massimo di redirect
 #define BACKLOG 10
-#define MAX_TCP_SOCKET 3
+#define MAX_TCP_SOCKET 12
 #define MAX_JOIN_OV_TRY 5
 
 
-char near_str[MAX_TCP_SOCKET * ADDR_STR_LEN];
+char *near_str;
+int near_str_len;
 
 int tcp_listen;
 
 int nsock;
 
 int is_sp;
+
+int max_tcp_sock;
+
+int curr_redirect_count;
 
 short have_child; // per ricordare se ho fatto un promote
 

@@ -49,6 +49,29 @@ int readline(int fd, void *vptr, int maxlen)
   return(n);	/* restituisce il numero di byte letti */
 }
 
+int readstr(int fd, void *vptr, int maxlen)
+{
+  int  n, rc;
+  char c, *ptr;
+
+  ptr = vptr;
+  for (n = 1; n < maxlen; n++) {
+    if ((rc = read(fd, &c, 1)) == 1) { 
+      *ptr++ = c;
+      if (c == '\0') break;
+   } 
+   else 
+      if (rc == 0) {		/* read ha letto l'EOF */
+ 	 if (n == 1) return(0);	/* esce senza aver letto nulla */
+ 	 else break;
+      } 
+      else return(-1);		/* errore */
+  }
+
+  *ptr = 0;	/* per indicare la fine dell'input */
+  return(n);	/* restituisce il numero di byte letti */
+}
+
 void ltob(char *dest, long src) {
 	char *it = (char *)&src;
 	int i;
