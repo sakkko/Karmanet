@@ -14,7 +14,6 @@
 
 #define SERV_PORT 5193
 
-int addr_to_send;
 
 int sp_join(int sockfd, const struct sockaddr_in *addr, const struct packet *pck, struct sp_list_checker_info *splchinfo);
 
@@ -22,8 +21,8 @@ int sp_leave(int sockfd, const struct sockaddr_in *addr, const struct packet *pc
 
 int sp_register(int sockfd, const struct sockaddr_in *addr, const struct packet *pck, struct sp_list_checker_info *splchinfo);
 
-int send_addr_list(int sockfd, const struct sockaddr_in *addr, const struct packet *pck);
+int send_addr_list(int sockfd, const struct sockaddr_in *addr, const struct packet *pck, struct sp_list_checker_info *splchinfo);
 
-int set_str_addrlist(char *str);
+int set_str_addrlist(char *str, int superpeer, struct sp_list_checker_info *splchinfo);
 
 #endif

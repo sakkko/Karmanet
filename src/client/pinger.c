@@ -42,7 +42,6 @@ void pinger_func(void *args) {
 				fprintf(stderr, "pinger_func error - can't release lock: %s\n", strerror(rc));
 				pthread_exit((void *)-1);
 			}
-//			printf("PINGER TERMINATE\n");
 			pthread_exit((void *)0);
 		}
 
@@ -52,6 +51,10 @@ void pinger_func(void *args) {
 		}
 
 		new_ping_packet(&ping_packet, get_index());
+		if (is_sp) {
+			*ping_packet.data = (char)(max_tcp_sock - nsock);
+			ping_packet.data_len = 1;
+		}
 		if (mutex_send(pinfo->socksd, &pinfo->addr_to_ping, &ping_packet) < 0) {
 			fprintf(stderr, "pinger_func error - can't send ping\n");
 		}

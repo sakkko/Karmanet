@@ -13,8 +13,9 @@
 
 #define PACKET_FLAG_WHOHAS_NAME 1
 #define PACKET_FLAG_WHOHAS_MD5 2
-#define PACKET_FLAG_QUERY 4 //SET = QUERY UNSET = RESPONSE
-#define PACKET_FLAG_NEXT_CHUNK 8
+#define PACKET_FLAG_QUERY 8 //SET = QUERY UNSET = RESPONSE
+#define PACKET_FLAG_NEXT_CHUNK 32
+#define PACKET_FLAG_SUPERPEER 128
 
 struct packet {
 	char cmd[CMD_STR_LEN];
@@ -80,6 +81,10 @@ void unset_whohas_md5_flag(struct packet *pck);
 void set_nextchunk_flag(struct packet *pck);
 
 void unset_nextchunk_flag(struct packet *pck);
+
+void set_superpeer_flag(struct packet *pck);
+
+void unset_superpeer_flag(struct packet *pck);
 
 int is_set_flag(const struct packet *pck, char flag);
 

@@ -13,10 +13,10 @@
 
 #include <errno.h>
 
-#define MAX_P_COUNT 2  //numero massimo di peer connessi a me stesso
-#define MAX_REDIRECT_COUNT 1 //numero massimo di redirect
+#define MAX_P_COUNT 1  //numero massimo di peer connessi a me stesso
+#define MAX_REDIRECT_COUNT 0 //numero massimo di redirect
 #define BACKLOG 10
-#define MAX_TCP_SOCKET 12
+#define MAX_TCP_SOCKET 3
 #define MAX_JOIN_OV_TRY 5
 
 

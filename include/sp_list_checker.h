@@ -21,6 +21,6 @@ int sp_list_checker_stop(struct sp_list_checker_info *splchinfo);
 
 void sp_list_checker_func(void *args);
 
-int update_sp_flag(struct sp_list_checker_info *splchinfo, const struct sockaddr_in *sp_addr);
+int update_sp_flag(struct sp_list_checker_info *splchinfo, const struct sockaddr_in *sp_addr, char free_spots);
 
 #endif

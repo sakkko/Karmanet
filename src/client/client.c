@@ -1256,6 +1256,8 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 		}
 
 		new_register_packet(&send_pck, get_index());
+		*send_pck.data = (char)(max_tcp_sock - nsock);
+		send_pck.data_len = 1;
 		printf("INVIO REGISTER\n");
 		if (retx_send(udp_sock, bs_addr, &send_pck) < 0) {
 			fprintf(stderr, "udp_handler error - retx_send failed\n");
@@ -1307,6 +1309,8 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 					return 0;
 				} else {
 					new_register_packet(&send_pck, get_index());
+					*send_pck.data = (char)(max_tcp_sock - nsock);
+					send_pck.data_len = 1;
 					if (retx_send(udp_sock, bs_addr, &send_pck) < 0) {
 						fprintf(stderr, "list_handler error - retx_send failed\n");
 						return -1;
@@ -1327,6 +1331,8 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 		}
 
 		new_register_packet(&send_pck, get_index());
+		*send_pck.data = (char)(max_tcp_sock - nsock);
+		send_pck.data_len = 1;
 		printf("INVIO REGISTER\n");
 		if (retx_send(udp_sock, bs_addr, &send_pck) < 0) {
 			fprintf(stderr, "udp_handler error - retx_send failed\n");
@@ -1398,6 +1404,7 @@ int promote_handler(int udp_sock, const struct sockaddr_in *recv_addr, const str
 		}
 		printf("\nRICEVUTO PROMOTE DA SP\n");
 		new_join_packet(&send_pck, get_index());
+		set_superpeer_flag(&send_pck);
 		if (retx_send(udp_sock, bs_addr, &send_pck) < 0) {
 			fprintf(stderr, "promote_handler error - retx_send failed\n");
 			return -1;

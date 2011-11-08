@@ -30,10 +30,7 @@
 #include "uploader.h"
 #include "state.h"
 
-
-
 #define BS_PORT 5193
-
 
 #define MAX_BS_ERROR 5
 

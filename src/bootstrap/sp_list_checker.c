@@ -39,17 +39,9 @@ void sp_list_checker_func(void *args) {
 			pthread_exit((void *)-1);
 		}
 
-		//controllo se devo terminare
-		if (splchinfo->thinfo.go == 0) {
-			if ((rc = pthread_mutex_unlock(&splchinfo->thinfo.mutex)) != 0) {
-				fprintf(stderr, "sp_list_checker_func error - can't release lock: %s\n", strerror(rc));
-				pthread_exit((void *)-1);
-			}
-			pthread_exit((void *)0);
-		}
-		
 		it = *splchinfo->sp_list;
 		dim = 0;
+
 		while (it != NULL) {
 			spaddr_tmp = (struct spaddr_node *)it->data;
 			tmp_node = it;
@@ -76,8 +68,7 @@ void sp_list_checker_func(void *args) {
  * passato come parametro.
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
-int update_sp_flag(struct sp_list_checker_info *splchinfo, const struct sockaddr_in *sp_addr) {
-
+int update_sp_flag(struct sp_list_checker_info *splchinfo, const struct sockaddr_in *sp_addr, char free_spots) {
 	struct spaddr_node *sp_node;
 	struct node *tmp_node;
 	int rc;
@@ -108,6 +99,7 @@ int update_sp_flag(struct sp_list_checker_info *splchinfo, const struct sockaddr
 	}
 
 	sp_node->flag = 1;
+	sp_node->free_spots = free_spots;
 
 	if ((rc = pthread_mutex_unlock(&splchinfo->thinfo.mutex)) != 0) {
 		fprintf(stderr, "update_sp_flag error - can't release lock: %s\n", strerror(rc));

@@ -260,6 +260,14 @@ void unset_nextchunk_flag(struct packet *pck) {
 	unset_flag(pck, PACKET_FLAG_NEXT_CHUNK);
 }
 
+void set_superpeer_flag(struct packet *pck) {
+	set_flag(pck, PACKET_FLAG_SUPERPEER);
+}
+
+void unset_superpeer_flag(struct packet *pck) {
+	unset_flag(pck, PACKET_FLAG_SUPERPEER);
+}
+
 int is_set_flag(const struct packet *pck, char flag) {
 	return pck->flag & flag;
 }

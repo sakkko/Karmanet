@@ -11,17 +11,18 @@ int sp_register(int sockfd, const struct sockaddr_in *addr, const struct packet 
 	int rc;
 
 	printf("SP REGISTER\n");
+	
+	if (pck->data_len != 1) {
+		fprintf(stderr, "sp_register error - invalid packet format\n");
+		return -1;
+	}
+
 	if ((rc = pthread_mutex_lock(&splchinfo->thinfo.mutex)) != 0) {
 		fprintf(stderr, "sp_register error - can't acquire lock: %s\n", strerror(rc));
 		return -1;
 	}
-	
-	insert_sp(addr); 	
-	
-	if (send_addr_list(sockfd, addr, pck) < 0) {
-		perror("errore invio lista IP");
-		//RITORNO ????
-	}
+
+	insert_sp(addr, *pck->data); 	
 	
 	if ((rc = pthread_mutex_unlock(&splchinfo->thinfo.mutex)) != 0) {
 		fprintf(stderr, "sp_register error - can't release lock: %s\n", strerror(rc));
@@ -73,31 +74,69 @@ int sp_leave(int sockfd, const struct sockaddr_in *addr, const struct packet *pc
  * Funzione che scrive gli indirizzi da iviare in byte nella stringa passata come parametro.
  * Ritorna il numero di indirizzo scritti nella stringa.
  */
-int set_str_addrlist(char *str) {
+int set_str_addrlist(char *str, int superpeer, struct sp_list_checker_info *splchinfo) {
 	char *ptr;
-	int i, ret;
+	int i, rc, ret;
 	struct sockaddr_in *saddr;
-	struct node *it_tmp;
+	struct node *it_tmp, *it_tmp2;
 
-	ptr = str;
-	//di default invio 4 indirizzi
-	ret = ADDR_TOSEND;
-	if (sp_count < ADDR_TOSEND) {
-		//ci sono meno di 4 indirizzi nella lista, invio tutti quelli che ci sono
-		ret = sp_count;
-	}
+	if (superpeer == 0) {
+		ptr = str;
+		ret = addr_to_send;
+		if (sp_count < addr_to_send) {
+			//ci sono meno di 4 indirizzi nella lista, invio tutti quelli che ci sono
+			ret = sp_count;
+		}
 
-	saddr = get_addr();
-	it_tmp = it_addr;
+		if ((rc = pthread_mutex_lock(&splchinfo->thinfo.mutex)) != 0) {
+			fprintf(stderr, "set_str_addrlist error - can't acquire lock: %s\n", strerror(rc));
+			return -1;
+		}
 
-	for (i = 0; i < ret; i ++) {
-		addr2str(ptr, saddr->sin_addr.s_addr, saddr->sin_port);
-		ptr += ADDR_STR_LEN;
 		saddr = get_addr();
+		it_tmp = it_addr;
+
+		for (i = 0; i < ret; i ++) {
+			addr2str(ptr, saddr->sin_addr.s_addr, saddr->sin_port);
+			ptr += ADDR_STR_LEN;
+			saddr = get_addr();
+		}
+
+		it_addr = it_tmp;
+
+		if ((rc = pthread_mutex_unlock(&splchinfo->thinfo.mutex)) != 0) {
+			fprintf(stderr, "set_str_addrlist error - can't release lock: %s\n", strerror(rc));
+			return -1;
+		}
+	} else {
+		ptr = str;
+		if ((rc = pthread_mutex_lock(&splchinfo->thinfo.mutex)) != 0) {
+			fprintf(stderr, "set_str_addrlist error - can't acquire lock: %s\n", strerror(rc));
+			return -1;
+		}
+
+		it_tmp = get_addr_sp(&ret);
+
+		if ((rc = pthread_mutex_unlock(&splchinfo->thinfo.mutex)) != 0) {
+			fprintf(stderr, "set_str_addrlist error - can't release lock: %s\n", strerror(rc));
+			return -1;
+		}
+		if (it_tmp == NULL) {
+			fprintf(stderr, "set_str_addrlist error - no free super-peer found\n");
+			return -1;
+		}
+		it_tmp2 = it_tmp;
+
+		while (it_tmp2 != NULL) {
+			addr2str(ptr, ((struct spaddr_node *)it_tmp2->data)->sp_addr.sin_addr.s_addr, ((struct spaddr_node *)it_tmp2->data)->sp_addr.sin_port);
+			printf("INDIRIZZO SP: %s:%u\n", inet_ntoa(((struct spaddr_node *)it_tmp2->data)->sp_addr.sin_addr), ntohs(((struct spaddr_node *)it_tmp2->data)->sp_addr.sin_port));
+			ptr += ADDR_STR_LEN;
+			it_tmp2 = it_tmp2->next;
+		}
+
+		free_list(it_tmp);
+		
 	}
-
-	it_addr = it_tmp;
-
 	return ret;
 }
 
@@ -106,13 +145,17 @@ int set_str_addrlist(char *str) {
  * passato come parametro.
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
-int send_addr_list(int sockfd, const struct sockaddr_in *addr, const struct packet *pck) {
+int send_addr_list(int sockfd, const struct sockaddr_in *addr, const struct packet *pck, struct sp_list_checker_info *splchinfo) {
 	char str_to_send[ADDR_STR_LEN * ADDR_TOSEND]; 
 	int dim;
 	struct packet send_list; 
 	
 	//preparo il dato da inviare	
-	dim = set_str_addrlist(str_to_send);  
+	dim = set_str_addrlist(str_to_send, is_set_flag(pck, PACKET_FLAG_SUPERPEER), splchinfo);  
+	if (dim < 0) {
+		fprintf(stderr, "send_addr_list error - set_str_addrlist failed\n");
+		return -1;
+	}
 	new_packet(&send_list, CMD_LIST, pck->index, str_to_send, dim * ADDR_STR_LEN, 1);
 	if (send_packet(sockfd, addr, &send_list) < 0) {
 		return -1;
@@ -133,47 +176,54 @@ int sp_join(int sockfd, const struct sockaddr_in *addr, const struct packet *pck
 	int rc;
 
 	if ((rc = pthread_mutex_lock(&splchinfo->thinfo.mutex)) != 0) {
-		fprintf(stderr, "join error - can't acquire lock: %s\n", strerror(rc));
+		fprintf(stderr, "sp_join error - can't acquire lock: %s\n", strerror(rc));
 		return -1;
 	}
 	
 	if (sp_list_head == NULL) {
 		printf("lista vuota inviato promote\n");
+		insert_sp(addr, ADDR_TOSEND * 2);
+		if ((rc = pthread_mutex_unlock(&splchinfo->thinfo.mutex)) != 0) {
+			fprintf(stderr, "sp_join error - can't release lock: %s\n", strerror(rc));
+			return -1;
+		}
+
 		new_promote_packet(&promote, pck->index);
 		addr2str(promote.data, addr->sin_addr.s_addr, addr->sin_port);
 		promote.data_len = 6;	
 		if (send_packet(sockfd, addr, &promote) < 0) {
-			perror("errore in sendto");
+			perror("sp_join error - send_packet failed");
+			return -1;
 		}
-		insert_sp(addr);
 	} else {
 		if (sp_count == 1) {
 			if (addrcmp(&((struct spaddr_node *)sp_list_head->data)->sp_addr, addr)) {
+				if ((rc = pthread_mutex_unlock(&splchinfo->thinfo.mutex)) != 0) {
+					fprintf(stderr, "sp_join error - can't release lock: %s\n", strerror(rc));
+					return -1;
+				}
 				new_promote_packet(&promote, pck->index);
 				addr2str(promote.data, addr->sin_addr.s_addr, addr->sin_port);
 				promote.data_len = 6;	
 				printf("INVIO PROMOTE\n");
 				if (send_packet(sockfd, addr, &promote) < 0) {
-					perror("errore in sendto");
-				}
-				if ((rc = pthread_mutex_unlock(&splchinfo->thinfo.mutex)) != 0) {
-					fprintf(stderr, "join error - can't release lock: %s\n", strerror(rc));
+					perror("sp_join error - send_packet failed");
 					return -1;
 				}
 				return 0;
 			} 
 		}
 
-		if (send_addr_list(sockfd, addr, pck) < 0) {
-			perror("errore invio lista IP");
+		if ((rc = pthread_mutex_unlock(&splchinfo->thinfo.mutex)) != 0) {
+			fprintf(stderr, "sp_join error - can't release lock: %s\n", strerror(rc));
+			return -1;
+		}
+		if (send_addr_list(sockfd, addr, pck, splchinfo) < 0) {
+			fprintf(stderr, "sp_join error - send_addr_list failed");
+			return -1;
 		}
 	}
 	
-	if ((rc = pthread_mutex_unlock(&splchinfo->thinfo.mutex)) != 0) {
-		fprintf(stderr, "join error - can't release lock: %s\n", strerror(rc));
-		return -1;
-	}
-
 	return 0;
 }
 
@@ -181,10 +231,8 @@ int main(int argc, char **argv) {
 	int sockfd;
   	int len;
   	struct sockaddr_in addr;
-  	char str[15];
 	int n;
 	struct packet recv_pck;
- 	char strcmd[CMD_STR_LEN + 1];
 
 	struct sp_list_checker_info spl_check_info;
 
@@ -216,29 +264,26 @@ int main(int argc, char **argv) {
 			perror("errore in recvfrom");
 			return 1;
 		}
-		strncpy(strcmd, recv_pck.cmd, CMD_STR_LEN);
-		strcmd[CMD_STR_LEN] = 0;
-		inet_ntop(AF_INET, &addr.sin_addr, str, 15);
 
 		if (!strncmp(recv_pck.cmd, CMD_PING, CMD_STR_LEN)) {
 			//aggiorno il flag del superpeer che mi ha pingato
-			if (update_sp_flag(&spl_check_info, &addr) < 0) {
+			if (update_sp_flag(&spl_check_info, &addr, *recv_pck.data) < 0) {
 				fprintf(stderr, "Ping error\n");
 			}
 		} else if (!strncmp(recv_pck.cmd, CMD_JOIN, CMD_STR_LEN)) {
 			//join sp
 			if (sp_join(sockfd, &addr, &recv_pck, &spl_check_info) < 0) {
-				fprintf(stderr, "join error\n");
+				fprintf(stderr, "Join error\n");
 			}
 		} else if(!strncmp(recv_pck.cmd, CMD_LEAVE, CMD_STR_LEN)) {
 			//delete sp
 			if (sp_leave(sockfd, &addr, &recv_pck, &spl_check_info) < 0) {
-				fprintf(stderr, "leave error\n");
+				fprintf(stderr, "Leave error\n");
 			}
 		} else if (!strncmp(recv_pck.cmd, CMD_REGISTER, CMD_STR_LEN)) {
 			//insert sp
 			if (sp_register(sockfd, &addr, &recv_pck, &spl_check_info) < 0) {
-				fprintf(stderr, "register error\n");
+				fprintf(stderr, "Register error\n");
 			}			
 		}
 	}
