@@ -118,6 +118,7 @@ int init_superpeer(const struct sockaddr_in *sp_addr_list, int list_len) {
 	nsock = 0;
 	curr_p_count = 0;
 	have_child = 0; 
+	child_miss_pong = 0;
 	curr_child_redirect = 0; 
 	join_ov_try = 0;
 

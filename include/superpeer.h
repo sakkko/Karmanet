@@ -31,13 +31,19 @@ int is_sp;
 
 int max_tcp_sock;
 
-int curr_redirect_count;
+//int curr_redirect_count;//
 
 short have_child; // per ricordare se ho fatto un promote
 
+short child_miss_pong; //conto il numero di pong persi
+
 short curr_child_redirect; //per contare quanti redirect ho inviato su mio figlio
 
+short curr_child_p_count;
+
 struct sockaddr_in child_addr; //ultimo promote inviato
+
+struct sockaddr_in fhater_addr;
 
 struct sockaddr_in myaddr;
 

@@ -64,6 +64,22 @@ void pinger_func(void *args) {
 				fprintf(stderr, "pinger_func error - tcp_ping failed\n");
 				pthread_exit((void *)-1);
 			}
+			
+			if(have_child){
+				if(child_miss_pong < 3){
+					printf("invio ping a mio FIGLIO\n");
+					child_miss_pong++;
+					new_ping_packet(&ping_packet, get_index());
+					if (mutex_send(pinfo->socksd, &child_addr, &ping_packet) < 0) {
+						fprintf(stderr, "pinger_func error - can't send ping to child\n");
+					}		
+				}
+				else{
+					printf("mio FIGLIO è caduto\n");
+					have_child = 0;
+					child_miss_pong=0;
+				}
+			}
 		}	
 	}
 

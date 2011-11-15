@@ -318,23 +318,37 @@ int ping_handler(int udp_sock, const struct sockaddr_in *addr, const struct pack
 			return -1;
 		}
 		new_pong_packet(&tmp_pck, recv_pck->index);
+		//devo aggiungere i posti peer disponibili al pong
+		if (addrcmp(addr,&fhater_addr)){
+			ltob(tmp_pck.data ,curr_p_count);
+			printf("data %d\n",btol(tmp_pck.data));
+			tmp_pck.data_len = 4;
+			printf("ricevuto ping da PADRE curr_p_count:%d\n",curr_p_count);
+			
+		}
 		if (mutex_send(udp_sock, addr, &tmp_pck) < 0) {
 			fprintf(stderr, "udp_send error - mutex_send failed\n");
 			return -1;
-		}
+		} 
 	}
 
 	return 0;
 }
 
 /*
- * Funzione che gestisce il comando pong.
+ * Funzione che gestisce il comando pong
  */
-void pong_handler() {
+void pong_handler(const struct sockaddr_in *addr, const struct packet *recv_pck) {
 	if (is_sp == 0) {
 		if (update_sp_flag(sp_checker) < 0) {
 			fprintf(stderr, "pong_handler error - update_sp_flag failed\n");
 		}
+	}
+	else if(addrcmp(addr, &child_addr)){
+		
+		printf("ricevuto pong da figlio posti occupati:%d\n",btol(&recv_pck->data));	
+		curr_child_p_count = btol(&recv_pck->data);
+		child_miss_pong = 0;
 	}
 }
 
@@ -429,10 +443,11 @@ int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct socka
 	} else if (state == ST_REGISTER_SENT) {
 		if (addrcmp(addr, bs_addr)) {
 			new_register_packet(&pck, get_index());
-			if (retx_send(udp_sock, &pinger.addr_to_ping ,&pck) < 0) {
+			if (retx_send(udp_sock, &pinger.addr_to_ping ,&pck) < 0) {//addr_to_ping è il mio padre???spero di si!
 				fprintf(stderr, "ack_handler error - retx_send failed\n");
 				return -1;
 			}
+			addrcpy(&fhater_addr, &pinger.addr_to_ping);
 			if (stop_threads(0) < 0) {
 				fprintf(stderr, "ack_handler error - stop_threads failed\n");
 				return -1;
@@ -1086,7 +1101,7 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 			return -1;
 		}
 	} else if (!strncmp(recv_pck.cmd, CMD_PONG, CMD_STR_LEN)) { 
-		pong_handler();
+		pong_handler(&addr,&recv_pck);
 	} else if (!strncmp(recv_pck.cmd, CMD_PROMOTE, CMD_STR_LEN)) { 
 		if (promote_handler(udp_sock, &addr, bs_addr, &recv_pck) < 0) {
 			fprintf(stderr, "udp_handler error - promote_handler failed\n");
@@ -1449,7 +1464,6 @@ int join_handler(int udp_sock, const struct sockaddr_in *addr, const struct pack
 				}
 				printf("troppi P!!!\n");
 				if (have_child == 0) {
-					curr_redirect_count = 0;
 					printf("PROMUOVO\n");
 					if (promote_peer(udp_sock, peer_list_checker) < 0) {
 						fprintf(stderr, "join_handler error - promote_peer failed\n");
@@ -1459,12 +1473,22 @@ int join_handler(int udp_sock, const struct sockaddr_in *addr, const struct pack
 					return 0;
 				} else {
 					printf("DIROTTO\n");
-					curr_redirect_count ++;
-					if (curr_redirect_count >= MAX_REDIRECT_COUNT) {
-						printf("Troppi dirottamenti, al prossimo join promuovo\n");
-						have_child = 0;
+					if(child_miss_pong < 3){
+						if (curr_child_p_count == MAX_P_COUNT-1) {
+							printf("Troppi dirottamenti, al prossimo join promuovo\n");
+							have_child = 0;
+						}
+						new_redirect_packet(&tmp_packet, pck->index, &child_addr);
 					}
-					new_redirect_packet(&tmp_packet, pck->index, &child_addr);
+					else{
+						printf("mio figlio è caduto PROMUOVO\n");
+						if (promote_peer(udp_sock, peer_list_checker) < 0) {
+							fprintf(stderr, "join_handler error - promote_peer failed\n");
+							return -1;
+						}
+						state = ST_PROMOTE_SENT;
+						return 0;
+					}
 				}
 			}
 		}
