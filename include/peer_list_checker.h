@@ -9,6 +9,7 @@
 #include "hashtable.h"
 #include "fifo_request.h"
 #include "state.h"
+#include "packet_util.h"
 
 #define PL_CHECK_TIME 6
 
@@ -24,6 +25,6 @@ int peer_list_checker_stop(struct peer_list_ch_info *plchinfo);
 
 void peer_list_checker_func(void *args);
 
-int update_peer_flag(struct peer_list_ch_info *plchinfo, const struct sockaddr_in *peer_addr);
+int update_peer_flag(struct peer_list_ch_info *plchinfo, const struct sockaddr_in *peer_addr, const struct packet *recv_pck);
 
 #endif

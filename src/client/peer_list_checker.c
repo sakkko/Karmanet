@@ -121,7 +121,7 @@ void peer_list_checker_func(void *args) {
  * passato come parametro.
  * Ritorna 0 in caso di successo e -1 in caso di errore.
  */
-int update_peer_flag(struct peer_list_ch_info *plchinfo, const struct sockaddr_in *peer_addr) {
+int update_peer_flag(struct peer_list_ch_info *plchinfo, const struct sockaddr_in *peer_addr, const struct packet *recv_pck) {
 	struct node *tmp_node;
 	int rc;
 
@@ -135,6 +135,8 @@ int update_peer_flag(struct peer_list_ch_info *plchinfo, const struct sockaddr_i
 	while (tmp_node != NULL) {
 		if (addrcmp(&((struct peer_node *)tmp_node->data)->peer_addr, peer_addr)) {
 			((struct peer_node *)tmp_node->data)->flag = 1;
+			((struct peer_node *)tmp_node->data)->peer_rate = btol(&recv_pck->data);
+			printf("aggiornato peer_rate a %ld\n",btol(&recv_pck->data));
 			break;
 		}
 		tmp_node = tmp_node->next;

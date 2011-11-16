@@ -52,8 +52,17 @@ void pinger_func(void *args) {
 
 		new_ping_packet(&ping_packet, get_index());
 		if (is_sp) {
+			//devo dire al server quante connessioni libere ho
 			*ping_packet.data = (char)(max_tcp_sock - nsock);
 			ping_packet.data_len = 1;
+		}
+		else{
+			//devo aggiornare il mio sp del nuovo rate	
+			
+			ltob(ping_packet.data,get_peer_rate());
+			//printf("nuovo rate da inviare:%ld \n",get_peer_rate());
+			ping_packet.data_len = 4;
+			//printf("data = '%s'  date_conv = %ld\n",ping_packet.data,btol(ping_packet.data));
 		}
 		if (mutex_send(pinfo->socksd, &pinfo->addr_to_ping, &ping_packet) < 0) {
 			fprintf(stderr, "pinger_func error - can't send ping\n");

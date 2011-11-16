@@ -314,7 +314,7 @@ int ping_handler(int udp_sock, const struct sockaddr_in *addr, const struct pack
 	struct packet tmp_pck;
 
 	if (is_sp) {
-		if (update_peer_flag(peer_list_checker, addr) < 0) {
+		if (update_peer_flag(peer_list_checker, addr,recv_pck) < 0) {
 			fprintf(stderr, "ping_handler error - update_peer_flag failed\n");
 			return -1;
 		}
