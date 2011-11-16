@@ -60,9 +60,12 @@ struct ip_node {
 	struct ip_node *next;
 };
 
-struct file_node *hash_file[HASH_PRIME_NUMBER_FILE];
-struct ip_node *hash_ip[HASH_PRIME_NUMBER_PEER];
-struct md5_node *hash_md5[HASH_PRIME_NUMBER_FILE];
+
+struct file_node **hash_file;
+struct ip_node **hash_ip;
+struct md5_node **hash_md5;
+
+void init_hashtable();
 
 unsigned int filehash(const char* str, unsigned int len);
 

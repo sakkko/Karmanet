@@ -1,5 +1,18 @@
 #include "hashtable.h"
 
+
+void init_hashtable(){
+	
+printf("INIT HASHTABLE\n");
+
+hash_file = calloc(HASH_PRIME_NUMBER_FILE,4);
+hash_ip = calloc(HASH_PRIME_NUMBER_PEER,4);
+hash_md5 = calloc(HASH_PRIME_NUMBER_FILE,4);
+
+	
+}
+
+
 void print_results_name(const struct addr_node *results, const char *name) {
 	struct in_addr addr;
 	char md5_hex[MD5_DIGEST_LENGTH * 2 + 1];

@@ -66,9 +66,19 @@ void pinger_func(void *args) {
 			}
 			
 			if(have_child){
+				
+				if ((rc = pthread_mutex_lock(&CHILD_INFO_LOCK)) != 0) {
+					fprintf(stderr, "pinger_func error - can't acquire child lock: %s\n", strerror(rc));
+					return -1;
+				}
+				
 				if(child_miss_pong < 3){
 					printf("invio ping a mio FIGLIO\n");
 					child_miss_pong++;
+					
+					if ((rc = pthread_mutex_unlock(&CHILD_INFO_LOCK)) != 0) {
+						fprintf(stderr, "pinger_func error - can't release child lock: %s\n", strerror(rc));
+					}
 					new_ping_packet(&ping_packet, get_index());
 					if (mutex_send(pinfo->socksd, &child_addr, &ping_packet) < 0) {
 						fprintf(stderr, "pinger_func error - can't send ping to child\n");
@@ -78,6 +88,10 @@ void pinger_func(void *args) {
 					printf("mio FIGLIO è caduto\n");
 					have_child = 0;
 					child_miss_pong=0;
+					
+					if ((rc = pthread_mutex_unlock(&CHILD_INFO_LOCK)) != 0) {
+						fprintf(stderr, "pinger_func error - can't release child lock: %s\n", strerror(rc));
+					}
 				}
 			}
 		}	

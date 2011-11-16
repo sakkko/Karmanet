@@ -255,6 +255,7 @@ int init(int udp_sock) {
 	}
 
 	init_index();
+	start_time = 0;
 	set_rate();
 	retx.pipe_mutex = &pipe_mutex;
 	retx.retx_wr_pipe = thread_pipe[1];
@@ -339,6 +340,7 @@ int ping_handler(int udp_sock, const struct sockaddr_in *addr, const struct pack
  * Funzione che gestisce il comando pong
  */
 void pong_handler(const struct sockaddr_in *addr, const struct packet *recv_pck) {
+	int rc;
 	if (is_sp == 0) {
 		if (update_sp_flag(sp_checker) < 0) {
 			fprintf(stderr, "pong_handler error - update_sp_flag failed\n");
@@ -346,9 +348,17 @@ void pong_handler(const struct sockaddr_in *addr, const struct packet *recv_pck)
 	}
 	else if(addrcmp(addr, &child_addr)){
 		
-		printf("ricevuto pong da figlio posti occupati:%d\n",btol(&recv_pck->data));	
+		printf("ricevuto pong da figlio posti occupati:%d\n",btol(&recv_pck->data));
+		
+		if ((rc = pthread_mutex_lock(&CHILD_INFO_LOCK)) != 0) {
+				fprintf(stderr, "pong_handler error - can't acquire child lock: %s\n", strerror(rc));
+		}	
 		curr_child_p_count = btol(&recv_pck->data);
 		child_miss_pong = 0;
+		
+		if ((rc = pthread_mutex_unlock(&CHILD_INFO_LOCK)) != 0) {
+				fprintf(stderr, "pong_handler error - can't release child lock: %s\n", strerror(rc));
+		}
 	}
 }
 
@@ -1437,6 +1447,7 @@ int promote_handler(int udp_sock, const struct sockaddr_in *recv_addr, const str
  */
 int join_handler(int udp_sock, const struct sockaddr_in *addr, const struct packet *pck) {
 	struct packet tmp_packet;
+	int rc;
 
 	if (is_sp == 0) {
 		new_err_packet(&tmp_packet, pck->index);
@@ -1473,14 +1484,30 @@ int join_handler(int udp_sock, const struct sockaddr_in *addr, const struct pack
 					return 0;
 				} else {
 					printf("DIROTTO\n");
+				
+					if ((rc = pthread_mutex_lock(&CHILD_INFO_LOCK)) != 0) {
+							fprintf(stderr, "join_handler error - can't acquire child lock: %s\n", strerror(rc));
+				
+					}
+				
 					if(child_miss_pong < 3){
 						if (curr_child_p_count == MAX_P_COUNT-1) {
 							printf("Troppi dirottamenti, al prossimo join promuovo\n");
 							have_child = 0;
 						}
+						
+						if ((rc = pthread_mutex_unlock(&CHILD_INFO_LOCK)) != 0) {
+								fprintf(stderr, "join_handler error - can't release child lock: %s\n", strerror(rc));
+						}
+						
 						new_redirect_packet(&tmp_packet, pck->index, &child_addr);
 					}
 					else{
+						
+						if ((rc = pthread_mutex_unlock(&CHILD_INFO_LOCK)) != 0) {
+								fprintf(stderr, "join_handler error - can't release child lock: %s\n", strerror(rc));
+						}
+						
 						printf("mio figlio è caduto PROMUOVO\n");
 						if (promote_peer(udp_sock, peer_list_checker) < 0) {
 							fprintf(stderr, "join_handler error - promote_peer failed\n");

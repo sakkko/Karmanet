@@ -121,7 +121,9 @@ int init_superpeer(const struct sockaddr_in *sp_addr_list, int list_len) {
 	child_miss_pong = 0;
 	curr_child_redirect = 0; 
 	join_ov_try = 0;
-
+	
+	init_hashtable();	
+	
 	max_tcp_sock = MAX_TCP_SOCKET;
 	if (near_str != NULL) {
 		free(near_str);

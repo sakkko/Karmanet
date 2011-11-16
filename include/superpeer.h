@@ -39,6 +39,8 @@ short child_miss_pong; //conto il numero di pong persi
 
 short curr_child_redirect; //per contare quanti redirect ho inviato su mio figlio
 
+pthread_mutex_t CHILD_INFO_LOCK;
+
 short curr_child_p_count;
 
 struct sockaddr_in child_addr; //ultimo promote inviato

@@ -9,10 +9,15 @@ unsigned long get_peer_rate() {
 	}
 
 	cpu_freq = get_cpu_freq();
+	
+	if(start_time == 0){
+		
+		start_time = sinfo.uptime;	
+	}
 
-	printf("UPTIME = %ld\nTOTALRAM(B) = %lu\nFREERAM(B) = %lu\nMEM-UNIT = %d\nCPU-FREQ = %ld\n", sinfo.uptime, 
+	printf("UPTIME = %ld\nTOTALRAM(B) = %lu\nFREERAM(B) = %lu\nMEM-UNIT = %d\nCPU-FREQ = %ld\n", start_time-sinfo.uptime, 
 			sinfo.totalram * sinfo.mem_unit, sinfo.freeram * sinfo.mem_unit, sinfo.mem_unit, cpu_freq);
-	return sinfo.uptime + (sinfo.totalram * sinfo.mem_unit / PRECISION) + (cpu_freq * 100);
+	return (start_time-sinfo.uptime) + (sinfo.totalram * sinfo.mem_unit / PRECISION) + (cpu_freq * 100);
 
 }
 
