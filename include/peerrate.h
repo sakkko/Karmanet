@@ -9,7 +9,11 @@
 #define PRECISION 10010
 #define CPUFREQ_FLAG "cpu MHz"
 
+
+
 long start_time;
+
+long hw_rate;
 
 unsigned long get_peer_rate();
 

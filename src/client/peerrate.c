@@ -7,16 +7,18 @@ unsigned long get_peer_rate() {
 	if (sysinfo(&sinfo) < 0) {
 		return 0;
 	}
-
-	cpu_freq = get_cpu_freq();
+	if(hw_rate == 0){
+		cpu_freq = get_cpu_freq();
+		hw_rate = (sinfo.totalram * sinfo.mem_unit / PRECISION) + (cpu_freq * 100);
+		printf("UPTIME = %ld\nTOTALRAM(B) = %lu\nFREERAM(B) = %lu\nMEM-UNIT = %d\nCPU-FREQ = %ld\n", sinfo.uptime-start_time, sinfo.totalram * sinfo.mem_unit, sinfo.freeram * sinfo.mem_unit, sinfo.mem_unit, cpu_freq);
 	
+	}
 	if(start_time == 0){
 		printf("START TIME RATE\n");
 		start_time = sinfo.uptime;	
 	}
 
-	printf("UPTIME = %ld\nTOTALRAM(B) = %lu\nFREERAM(B) = %lu\nMEM-UNIT = %d\nCPU-FREQ = %ld\n", sinfo.uptime-start_time, sinfo.totalram * sinfo.mem_unit, sinfo.freeram * sinfo.mem_unit, sinfo.mem_unit, cpu_freq);
-	return (sinfo.uptime-start_time) + (sinfo.totalram * sinfo.mem_unit / PRECISION) + (cpu_freq * 100);
+	return (sinfo.uptime-start_time) + hw_rate;
 
 }
 

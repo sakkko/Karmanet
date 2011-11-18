@@ -256,6 +256,7 @@ int init(int udp_sock) {
 
 	init_index();
 	start_time = 0;
+	hw_rate = 0;
 	set_rate();
 	retx.pipe_mutex = &pipe_mutex;
 	retx.retx_wr_pipe = thread_pipe[1];
