@@ -38,7 +38,7 @@ unsigned long get_cpu_freq() {
 		}
 
 		buf[n - 1] = 0;
-//		printf("%s\n", buf);
+		printf("%s\n", buf);
 
 		for (i = 0; i < n; i ++) {
 			if (buf[i] == ':') {
