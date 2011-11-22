@@ -125,6 +125,7 @@ void uploader_func(void *args) {
 			continue;
 		}
 
+		printf("Iniziato upload del file %s\n", ulinfo->ulnode.file_info.filename);
 		while ((i = recv_packet_tcp(ulinfo->ulnode.socksd, &recv_pck)) > 0) {
 			if (strncmp(recv_pck.cmd, CMD_GET, CMD_STR_LEN)) {
 				fprintf(stderr, "uploader_func error - packet not expected\n");
@@ -168,6 +169,7 @@ void uploader_func(void *args) {
 		
 		sprintf(str, "TRM %d\n", ulinfo->index);
 		write_on_pipe(ulinfo->th_pipe, ulinfo->pipe_mutex, str);
+		printf("Completato upload del file %s\n", ulinfo->ulnode.file_info.filename);
 	}
 
 }
@@ -190,7 +192,7 @@ int send_chunk(int fd, int chunk_index, const struct transfer_node *ulnode) {
 	lseek(fd, chunk_index * CHUNK_SIZE, SEEK_SET);
 	part_number = get_part_number(chunk_index, ulnode);
 
-	printf("Invio chunk %d\n", chunk_index);
+//	printf("Invio chunk %d\n", chunk_index);
 	for (j = 0; j < part_number; j ++) {
 		if ((nread = read(fd, send_pck.data, MAXLINE)) < 0) {
 			fprintf(stderr, "uploader_func error - read failed\n");

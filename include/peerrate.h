@@ -6,7 +6,9 @@
 
 #include "ioutil.h"
 
-#define PRECISION 10010
+#define PRECISION (1024 * 1024) 
+#define RAM_LIMIT (4 * 1024) 
+#define CPU_LIMIT 4000
 #define CPUFREQ_FLAG "cpu MHz"
 
 

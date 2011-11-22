@@ -59,7 +59,7 @@ void pinger_func(void *args) {
 		else{
 			//devo aggiornare il mio sp del nuovo rate	
 			
-			ltob(ping_packet.data,get_peer_rate());
+			ltob(ping_packet.data, get_peer_rate());
 			//printf("nuovo rate da inviare:%ld \n",get_peer_rate());
 			ping_packet.data_len = 4;
 			//printf("data = '%s'  date_conv = %ld\n",ping_packet.data,btol(ping_packet.data));
@@ -78,15 +78,16 @@ void pinger_func(void *args) {
 				
 				if ((rc = pthread_mutex_lock(&CHILD_INFO_LOCK)) != 0) {
 					fprintf(stderr, "pinger_func error - can't acquire child lock: %s\n", strerror(rc));
-					return -1;
+					pthread_exit((void *)-1);
 				}
 				
 				if(child_miss_pong < 3){
-					printf("invio ping a mio FIGLIO\n");
+					//printf("invio ping a mio FIGLIO\n");
 					child_miss_pong++;
 					
 					if ((rc = pthread_mutex_unlock(&CHILD_INFO_LOCK)) != 0) {
 						fprintf(stderr, "pinger_func error - can't release child lock: %s\n", strerror(rc));
+						pthread_exit((void *)-1);
 					}
 					new_ping_packet(&ping_packet, get_index());
 					if (mutex_send(pinfo->socksd, &child_addr, &ping_packet) < 0) {
@@ -100,6 +101,7 @@ void pinger_func(void *args) {
 					
 					if ((rc = pthread_mutex_unlock(&CHILD_INFO_LOCK)) != 0) {
 						fprintf(stderr, "pinger_func error - can't release child lock: %s\n", strerror(rc));
+						pthread_exit((void *)-1);
 					}
 				}
 			}

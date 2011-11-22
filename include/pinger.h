@@ -10,6 +10,7 @@
 #include "retx.h"
 #include "thread_util.h"
 #include "superpeer.h"
+#include "peerrate.h"
 
 #define TIME_TO_PING 2 
 

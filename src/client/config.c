@@ -32,7 +32,7 @@ int read_config(struct config *conf) {
 		}
 	}
 
-	printf("UDP_PORT = %u\nTCP_PORT = %u\nSHARE_FOLDER = %s\nMAX_DOWNLOAD = %d\nMAX_UPLOAD = %d\n", conf->udp_port, conf->tcp_port, conf->share_folder, conf->max_download, conf->max_upload);
+	printf("UDP_PORT = %u %s\nTCP_PORT = %u %s\nSHARE_FOLDER = %s\nMAX_DOWNLOAD = %d\nMAX_UPLOAD = %d\n", conf->udp_port, (conf->udp_port == 0 ? "(porta scelta dal kernel)" : ""), conf->tcp_port, (conf->tcp_port == 0 ? "(porta scelta dal kernel)" : ""), conf->share_folder, conf->max_download, conf->max_upload);
 
 	if (close(fd) < 0) {
 		perror("read_config error - close failed");

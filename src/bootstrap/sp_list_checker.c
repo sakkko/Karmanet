@@ -23,7 +23,7 @@ int sp_list_checker_stop(struct sp_list_checker_info *splchinfo) {
  */
 void sp_list_checker_func(void *args) {
 	struct sp_list_checker_info *splchinfo = (struct sp_list_checker_info *)args;
-	struct node *tmp_node, *it;
+	struct node *it;
 	struct spaddr_node *spaddr_tmp;
 	struct timespec sleep_time;
 	int rc, dim = 0;
@@ -44,7 +44,6 @@ void sp_list_checker_func(void *args) {
 
 		while (it != NULL) {
 			spaddr_tmp = (struct spaddr_node *)it->data;
-			tmp_node = it;
 			it = it->next;
 			if (spaddr_tmp->flag == 0) {
 				printf("cancello nodo: %s:%d\n", inet_ntoa(spaddr_tmp->sp_addr.sin_addr), ntohs(spaddr_tmp->sp_addr.sin_port));

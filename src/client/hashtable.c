@@ -2,14 +2,14 @@
 
 
 void init_hashtable(){
-	
-printf("INIT HASHTABLE\n");
 
-hash_file = calloc(HASH_PRIME_NUMBER_FILE,4);
-hash_ip = calloc(HASH_PRIME_NUMBER_PEER,4);
-hash_md5 = calloc(HASH_PRIME_NUMBER_FILE,4);
+	printf("INIT HASHTABLE\n");
 
-	
+	hash_file = calloc(HASH_PRIME_NUMBER_FILE,4);
+	hash_ip = calloc(HASH_PRIME_NUMBER_PEER,4);
+	hash_md5 = calloc(HASH_PRIME_NUMBER_FILE,4);
+
+
 }
 
 

@@ -96,7 +96,7 @@ void downloader_func(void *args) {
 		}
 		
 		printf("File-part name: %s\n", partname);
-
+		printf("Chunk posseduti: %d\n", my_chunk_number);
 		if ((missing_chunk = get_missing_chunk(fdpart, dwnode->file_info.chunk_number, my_chunk_number, miss_chunk_number)) == NULL) {
 			fprintf(stderr, "downloader_func error - get_missing_chunk failed\n");
 			if (close(fdpart) < 0) {

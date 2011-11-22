@@ -135,8 +135,8 @@ int update_peer_flag(struct peer_list_ch_info *plchinfo, const struct sockaddr_i
 	while (tmp_node != NULL) {
 		if (addrcmp(&((struct peer_node *)tmp_node->data)->peer_addr, peer_addr)) {
 			((struct peer_node *)tmp_node->data)->flag = 1;
-			((struct peer_node *)tmp_node->data)->peer_rate = btol(&recv_pck->data);
-			printf("aggiornato peer_rate a %ld\n",btol(&recv_pck->data));
+			((struct peer_node *)tmp_node->data)->peer_rate = btol(recv_pck->data);
+//			printf("aggiornato peer_rate a %ld\n",btol(recv_pck->data));
 			break;
 		}
 		tmp_node = tmp_node->next;

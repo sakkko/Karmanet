@@ -226,7 +226,7 @@ int init_transfer() {
 
 	download_count = 0;
 	upload_count = 0;
-	printf("PIPE = %d\n", thread_pipe[1]);
+//	printf("PIPE = %d\n", thread_pipe[1]);
 	if (downloader_init(conf.max_download, thread_pipe[1], &pipe_mutex) < 0) {
 		fprintf(stderr, "init_tranfer error - downloader_init failed\n");
 		return -1;
@@ -254,18 +254,6 @@ int init(int udp_sock) {
 		return -1;
 	}
 
-	init_index();
-	start_time = 0;
-	hw_rate = 0;
-	set_rate();
-	retx.pipe_mutex = &pipe_mutex;
-	retx.retx_wr_pipe = thread_pipe[1];
-
-	if (retx_run(&retx) < 0) {
-		fprintf(stderr, "init error - can't initialize retransmission\n");
-		return -1;
-	}
-
 	if ((dw_listen_sock = tcp_socket()) < 0) {
 		perror("init_tranfer error - tcp_socket failed");
 		return -1;
@@ -280,9 +268,24 @@ int init(int udp_sock) {
 
 	if (conf.tcp_port == 0) {
 		conf.tcp_port = get_local_port(dw_listen_sock);
+		printf("Porta TCP scelta dal kernel: %u\n", ntohs(conf.tcp_port));
 	} else {
 		conf.tcp_port = htons(conf.tcp_port);
 	}
+
+	printf("\nCALCOLO PEER RATE\n");
+	init_index();
+	start_time = 0;
+	hw_rate = 0;
+	set_rate();
+	retx.pipe_mutex = &pipe_mutex;
+	retx.retx_wr_pipe = thread_pipe[1];
+
+	if (retx_run(&retx) < 0) {
+		fprintf(stderr, "init error - can't initialize retransmission\n");
+		return -1;
+	}
+
 
 
 	bserror = 0;
@@ -321,11 +324,11 @@ int ping_handler(int udp_sock, const struct sockaddr_in *addr, const struct pack
 		}
 		new_pong_packet(&tmp_pck, recv_pck->index);
 		//devo aggiungere i posti peer disponibili al pong
-		if (addrcmp(addr,&fhater_addr)){
+		if (addrcmp(addr,&father_addr)){
 			ltob(tmp_pck.data ,curr_p_count);
-			printf("data %d\n",btol(tmp_pck.data));
+		//	printf("data %ld\n", btol(tmp_pck.data));
 			tmp_pck.data_len = 4;
-			printf("ricevuto ping da PADRE curr_p_count:%d\n",curr_p_count);
+			//printf("ricevuto ping da PADRE curr_p_count:%d\n",curr_p_count);
 			
 		}
 		if (mutex_send(udp_sock, addr, &tmp_pck) < 0) {
@@ -349,12 +352,12 @@ void pong_handler(const struct sockaddr_in *addr, const struct packet *recv_pck)
 	}
 	else if(addrcmp(addr, &child_addr)){
 		
-		printf("ricevuto pong da figlio posti occupati:%d\n",btol(&recv_pck->data));
+	//	printf("ricevuto pong da figlio posti occupati: %ld\n", btol(recv_pck->data));
 		
 		if ((rc = pthread_mutex_lock(&CHILD_INFO_LOCK)) != 0) {
 				fprintf(stderr, "pong_handler error - can't acquire child lock: %s\n", strerror(rc));
 		}	
-		curr_child_p_count = btol(&recv_pck->data);
+		curr_child_p_count = btol(recv_pck->data);
 		child_miss_pong = 0;
 		
 		if ((rc = pthread_mutex_unlock(&CHILD_INFO_LOCK)) != 0) {
@@ -441,10 +444,12 @@ int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct socka
 		if (unlink(FILE_SHARE) < 0) {
 			perror("ack_handler error - unlink failed");
 		}
+		printf("Creo file share, attendere\n");
 		if (create_diff(conf.share_folder) < 0) {
 			fprintf(stderr, "ack_handler error - create_diff failed\n");
 			return -1;
 		}
+		printf("File share creato\n");
 		if (send_share(udp_sock, addr) < 0) {
 			fprintf(stderr, "ack_handler error - send_share failed\n");
 			return -1;
@@ -454,11 +459,11 @@ int ack_handler(int udp_sock, const struct sockaddr_in *addr, const struct socka
 	} else if (state == ST_REGISTER_SENT) {
 		if (addrcmp(addr, bs_addr)) {
 			new_register_packet(&pck, get_index());
-			if (retx_send(udp_sock, &pinger.addr_to_ping ,&pck) < 0) {//addr_to_ping è il mio padre???spero di si!
+			if (retx_send(udp_sock, &pinger.addr_to_ping ,&pck) < 0) {
 				fprintf(stderr, "ack_handler error - retx_send failed\n");
 				return -1;
 			}
-			addrcpy(&fhater_addr, &pinger.addr_to_ping);
+			addrcpy(&father_addr, &pinger.addr_to_ping);
 			if (stop_threads(0) < 0) {
 				fprintf(stderr, "ack_handler error - stop_threads failed\n");
 				return -1;
@@ -1139,7 +1144,7 @@ int udp_handler(int udp_sock, const struct sockaddr_in *bs_addr) {
 			return -1;
 		}
 	} else if (!strncmp(recv_pck.cmd, CMD_REGISTER, CMD_STR_LEN)) {
-		printf("REGISTER\n");
+		printf("RICEVUTO REGISTER\n");
 		if (register_handler(udp_sock, &addr, &recv_pck) < 0) {
 			fprintf(stderr, "udp_handler error - file_list_handler failed\n");
 			return -1;
@@ -1248,12 +1253,13 @@ int list_handler(int udp_sock, const struct sockaddr_in *bs_addr, const struct p
 			return -1;
 		}
 		state = ST_JOINSP_SENT;
+		printf("INVIATO JOIN A SUPERPEER: %s:%u\n", inet_ntoa(addr_list[0].sin_addr), ntohs(addr_list[0].sin_port));
 	} else if (state == ST_PROMOTE_RECV) {
 		bserror = 0;
 		free(addr_list);
 		addr_list_len = recv_pck->data_len / 6;
 		addr_list = str_to_addr(recv_pck->data, addr_list_len);
-		printf("ADDRTOSEND = %d\n", recv_pck->data_len / 6);
+//		printf("ADDRTOSEND = %d\n", recv_pck->data_len / 6);
 		ret = init_superpeer(addr_list, recv_pck->data_len / 6);
 		free(addr_list);
 		addr_list = NULL;
@@ -1726,6 +1732,8 @@ int error_handler(int udp_sock, const char *errstr, const struct sockaddr_in *bs
 				return -1;
 			}
 		}
+	} else if (!strncmp(errstr, CMD_REGISTER, CMD_STR_LEN)) {
+		
 	}
 
 	return 0;
@@ -1824,6 +1832,7 @@ int main(int argc,char *argv[]) {
 		return -1;
 	}
 
+	printf("LEGGO FILE DI CONFIGURAZIONE\n");
 	if (read_config(&conf) < 0) {
 		fprintf(stderr, "Can't read configuration file\n");
 		return -1;
@@ -1838,7 +1847,7 @@ int main(int argc,char *argv[]) {
 	if (conf.udp_port == 0) {
 		//la porta è stata scelta dal kernel
 		conf.udp_port = get_local_port(udp_sock);
-		printf("PORT = %u\n", ntohs(conf.udp_port));
+		printf("\nPorta UDP scelta dal kernel: %u\n", ntohs(conf.udp_port));
 	} else {
 		conf.udp_port = htons(conf.udp_port);
 	}
@@ -1860,6 +1869,7 @@ int main(int argc,char *argv[]) {
 	}
 
 	state = ST_JOINBS_SENT;
+	printf("INVIATO JOIN AL BOOTSTRAP\n");
 
 	//main loop - select	
 	while (1) {

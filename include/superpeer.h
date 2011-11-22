@@ -13,10 +13,10 @@
 
 #include <errno.h>
 
-#define MAX_P_COUNT 1  //numero massimo di peer connessi a me stesso
-#define MAX_REDIRECT_COUNT 0 //numero massimo di redirect
+#define MAX_P_COUNT 100  //numero massimo di peer connessi a me stesso
+#define MAX_REDIRECT_COUNT 50 //numero massimo di redirect
 #define BACKLOG 10
-#define MAX_TCP_SOCKET 3
+#define MAX_TCP_SOCKET 6
 #define MAX_JOIN_OV_TRY 5
 
 
@@ -45,7 +45,7 @@ short curr_child_p_count;
 
 struct sockaddr_in child_addr; //ultimo promote inviato
 
-struct sockaddr_in fhater_addr;
+struct sockaddr_in father_addr;
 
 struct sockaddr_in myaddr;
 

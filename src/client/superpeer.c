@@ -17,6 +17,7 @@ int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
 	if (list_len > max_tcp_sock / 2) {
 		near_str = (char *)realloc(near_str, list_len * 2 * ADDR_STR_LEN);
 		memset(near_str + max_tcp_sock * ADDR_STR_LEN, 0, (list_len * 2 - max_tcp_sock) * ADDR_STR_LEN);
+		max_tcp_sock = list_len * 2;
 	}
 
 	for (i = 0; i < list_len; i ++) {
@@ -28,8 +29,8 @@ int join_overlay(const struct sockaddr_in *sp_addr_list, int list_len) {
 				perror("join_overlay error - can't initialize tcp socket");
 				return -1;
 			}
-			printf("SOCKET: %d\n", sock_tmp);
-			printf("LISTLEN: %d\n", list_len);
+			//printf("SOCKET: %d\n", sock_tmp);
+//			printf("LISTLEN: %d\n", list_len);
 		}
 		printf("join_overlay - addr: %s:%d\n", inet_ntoa(sp_addr_list[i].sin_addr), ntohs(sp_addr_list[i].sin_port));
 		if (tcp_connect(sock_tmp, &sp_addr_list[i]) < 0) {
@@ -122,7 +123,6 @@ int init_superpeer(const struct sockaddr_in *sp_addr_list, int list_len) {
 	curr_child_redirect = 0; 
 	join_ov_try = 0;
 	
-	init_hashtable();	
 	
 	max_tcp_sock = MAX_TCP_SOCKET;
 	if (near_str != NULL) {
@@ -153,6 +153,7 @@ int init_superpeer(const struct sockaddr_in *sp_addr_list, int list_len) {
 	} 
 
 
+	init_hashtable();	
 	return ret;
 	
 }

@@ -634,8 +634,8 @@ int get_filepath(char *filepath, char *filename, const unsigned char *md5) {
 			filename[n - 1] = 0;
 			if (!memcmp(buf, md5, MD5_DIGEST_LENGTH)) {
 				sprintf(filepath, "%s/%s", dirname, filename);
-				printf("%s/%s\n", dirname, filename);
-				printf("%s\n", filepath);
+				//printf("%s/%s\n", dirname, filename);
+				//printf("%s\n", filepath);
 				if (close(fd) < 0) {
 					perror("get_filepath error - close failed");
 				}
